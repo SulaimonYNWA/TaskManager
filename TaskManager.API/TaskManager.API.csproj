@@ -13,11 +13,11 @@
     </ItemGroup>
 
     <ItemGroup>
-      <Folder Include="src\Controllers\" />
-      <Folder Include="src\Data\" />
-      <Folder Include="src\Models\" />
-      <Folder Include="src\Repositories\" />
-      <Folder Include="src\Services\" />
+      <Folder Include="source\Controllers\" />
+      <Folder Include="source\Data\" />
+      <Folder Include="source\Models\" />
+      <Folder Include="source\Repositories\" />
+      <Folder Include="source\Services\" />
     </ItemGroup>
 
     <ItemGroup>
