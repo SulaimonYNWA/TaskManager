@@ -7,8 +7,24 @@
     </PropertyGroup>
 
     <ItemGroup>
-        <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="8.0.13"/>
-        <PackageReference Include="Swashbuckle.AspNetCore" Version="6.6.2"/>
+        <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="8.0.13" />
+        <PackageReference Include="Microsoft.EntityFrameworkCore" Version="9.0.3" />
+        <PackageReference Include="Swashbuckle.AspNetCore" Version="6.6.2" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <Folder Include="src\Controllers\" />
+      <Folder Include="src\Data\" />
+      <Folder Include="src\Models\" />
+      <Folder Include="src\Repositories\" />
+      <Folder Include="src\Services\" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <_ContentIncludedByDefault Remove="src\obj\Debug\net8.0\staticwebassets.build.json" />
+      <_ContentIncludedByDefault Remove="src\obj\project.assets.json" />
+      <_ContentIncludedByDefault Remove="src\obj\project.packagespec.json" />
+      <_ContentIncludedByDefault Remove="src\obj\TaskManager.API.csproj.nuget.dgspec.json" />
     </ItemGroup>
 
 </Project>
