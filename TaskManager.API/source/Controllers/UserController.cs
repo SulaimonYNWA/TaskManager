@@ -5,7 +5,7 @@ using System.Collections.Generic;
 using System.Threading.Tasks;
 using TaskManager.API.Models;
 
-
+// Get All users.
 [Route("api/[controller]")]
 [ApiController]
 public class UsersController : ControllerBase
