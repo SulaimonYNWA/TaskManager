@@ -21,4 +21,24 @@ public class TasksController : ControllerBase
         var tasks = await _taskRepository.GetAllTasks();
         return Ok(tasks);
     }
+    
+    [HttpPut("{id}/status")]
+    public async Task<IActionResult> UpdateTaskStatus(int id, [FromBody] UpdateTaskStatusRequest request)
+    {
+        var task = await _taskRepository.GetTaskById(id);
+        if (task == null)
+            return NotFound();
+
+        task.Status = request.Status;
+        await _taskRepository.UpdateTask(task);
+
+        return NoContent();
+    }
+
+    public class UpdateTaskStatusRequest
+    {
+        public string Status { get; set; }
+    }
+
 }
+
