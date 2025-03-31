@@ -27,6 +27,9 @@ builder.Services.AddScoped<ITaskRepository, TaskRepository>();
 
 var app = builder.Build();
 
+// Enable static file serving
+app.UseStaticFiles();
+
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
 {
@@ -36,6 +39,7 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
+app.UseStaticFiles();
 app.UseAuthorization();
 app.MapControllers();
 
