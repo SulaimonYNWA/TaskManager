@@ -38,6 +38,17 @@ namespace TaskManager.API.source.Repositories
             return await db.ExecuteScalarAsync<int>(sql, project);
         }
 
+        public async Task<bool> AddUserToProject(ProjectMember projectMember)
+        {
+            using var db = Connection; // Ensure a new DB connection
+            var sql = @"
+        INSERT INTO project_members (project_id, user_id, role) 
+        VALUES (@ProjectId, @UserId, @Role)";
+            return await db.ExecuteAsync(sql, projectMember) > 0;
+        }
+
+
+        
         public async Task<bool> UpdateProject(Project project)
         {
             using var db = Connection;

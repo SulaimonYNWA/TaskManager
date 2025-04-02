@@ -3,6 +3,7 @@ using Dapper;
 using MySql.Data.MySqlClient;
 using System.Collections.Generic;
 using System.Threading.Tasks;
+using Microsoft.AspNetCore.Authorization;
 using TaskManager.API.Models;
 
 [Route("api/[controller]")]
@@ -16,6 +17,7 @@ public class ProjectsController : ControllerBase
         _connectionString = configuration.GetConnectionString("DefaultConnection");
     }
 
+    [Authorize]
     [HttpGet]
     public async Task<ActionResult<IEnumerable<Project>>> GetProjects()
     {
