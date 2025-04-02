@@ -1,96 +1,128 @@
 let tasksData = [];
 let currentTask = null; // To hold the task clicked for viewing
 
-async function fetchProjects() {
+
+async function fetchProjectColumns() {
     try {
-        const response = await fetch('/api/projects');
-        const projects = await response.json();
-        const projectsList = document.getElementById('projects-list');
-        projectsList.innerHTML = projects.map(p => `<div class="project">${p.name}</div>`).join('');
-    } catch (error) {
-        console.error('Error fetching projects:', error);
-    }
-}
+        const response = await fetch('/api/ProjectColumns');
+        const columns = await response.json();
 
-async function fetchTasks() {
-    try {
-        const response = await fetch('/api/tasks');
-        tasksData = await response.json(); // Store fetched tasks globally
+        const columnsContainer = document.querySelector('.columns');
+        columnsContainer.innerHTML = ''; // Clear existing columns
 
-        // Sort tasks based on due date and overdue status
-        tasksData.sort((a, b) => {
-            const dateA = a.dueDate ? new Date(a.dueDate) : null;
-            const dateB = b.dueDate ? new Date(b.dueDate) : null;
-            const now = new Date();
+        columns.forEach(column => {
+            const columnElement = document.createElement('div');
+            columnElement.classList.add('column');
+            columnElement.id = `column-${column.id}`;
+            columnElement.dataset.columnId = column.id;
+            columnElement.ondragover = allowDrop;
+            columnElement.ondrop = event => drop(event, column.id);
 
-            if (!dateA && !dateB) return 0;
-            if (!dateA) return 1;
-            if (!dateB) return -1;
-
-            const isOverdueA = dateA < now;
-            const isOverdueB = dateB < now;
-
-            if (isOverdueA && !isOverdueB) return -1;
-            if (!isOverdueA && isOverdueB) return 1;
-
-            return dateA - dateB;
-        });
-
-        // Update task lists
-        const todoList = document.getElementById('todo-tasks');
-        const inProgressList = document.getElementById('in-progress-tasks');
-        const doneList = document.getElementById('done-tasks');
-
-        todoList.innerHTML = '';
-        inProgressList.innerHTML = '';
-        doneList.innerHTML = '';
-
-        tasksData.forEach(task => {
-            const taskElement = document.createElement('div');
-            taskElement.classList.add('task');
-            taskElement.setAttribute('draggable', 'true');
-            taskElement.setAttribute('data-id', task.id);
-            taskElement.ondragstart = drag;
-            taskElement.onclick = () => showTaskDetails(task); // Add click listener
-
-            let dueDateDisplay = '';
-            if (task.dueDate) {
-                const dueDate = new Date(task.dueDate);
-                dueDateDisplay = formatDueDate(dueDate);
-            }
-
-            taskElement.innerHTML = `
-                <strong>${task.title}</strong><br>
-                Priority: ${task.priority} <br>
-                <span class="due-date">${dueDateDisplay}</span>
+            columnElement.innerHTML = `
+                <h3>${column.name}</h3>
+                <div id="task-list-${column.id}" class="task-list"></div>
             `;
 
-            if (task.status === 'To Do') todoList.appendChild(taskElement);
-            else if (task.status === 'In Progress') inProgressList.appendChild(taskElement);
-            else if (task.status === 'Done') doneList.appendChild(taskElement);
+            columnsContainer.appendChild(columnElement);
         });
+
+        fetchTasks(); // Fetch tasks after columns are created
+    } catch (error) {
+        console.error('Error fetching project columns:', error);
+    }
+}
+async function fetchProjects() {
+    const token = localStorage.getItem('token'); // Retrieve JWT token from localStorage
+
+    if (!token) {
+        alert("Unauthorized! Please log in.");
+        window.location.href = 'login.html'; // Redirect to login page
+        return;
+    }
+    // console.log("JWT Token:", token); // Debugging
+
+    try {
+        const response = await fetch('/api/projects', {
+            method: 'GET',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}` // Attach token in the request
+            }
+        });
+        
+        console.log("Response Status:", response.status);
+        if (response.status === 401) {
+            alert("Unauthorized! Please log in again.");
+            return;
+        }
+        
+
+        const projects = await response.json();
+        const projectsList = document.getElementById('projects-list');
+
+        projectsList.innerHTML = projects.map(p =>
+            `<div class="project" data-project-id="${p.id}">${p.name}</div>`
+        ).join('');
+
+        // Set default active project (first one)
+        if (projects.length > 0) {
+            fetchTasks(projects[0].id);
+        }
+
+        // Add click event to each project
+        document.querySelectorAll('.project').forEach(project => {
+            project.addEventListener('click', () => {
+                const projectId = project.getAttribute('data-project-id');
+                fetchTasks(projectId);
+            });
+        });
+
+    } catch (error) {
+        console.error('Error fetching projects:', error);
+        alert("Error fetching projects. Please try again.");
+    }
+}
+fetchProjects();
+
+
+async function fetchTasks(projectId) {
+    try {
+        const response = await fetch(`/api/tasks?projectId=${projectId}`);
+        const tasksData = await response.json();
+
+        tasksData.sort((a, b) => sortByDueDate(a, b));
+
+        document.querySelectorAll('.task-list').forEach(list => list.innerHTML = '');
+
+        tasksData.forEach(task => renderTask(task));
     } catch (error) {
         console.error('Error fetching tasks:', error);
     }
 }
 
-function formatDueDate(date) {
-    const now = new Date();
-    const tomorrow = new Date();
-    tomorrow.setDate(now.getDate() + 1);
 
-    const options = { day: '2-digit', month: 'short' }; // "10 Apr" format
-    const formattedDate = date.toLocaleDateString('en-GB', options);
+function renderTask(task) {
+    const taskElement = document.createElement('div');
+    taskElement.classList.add('task');
+    taskElement.setAttribute('draggable', 'true');
+    taskElement.setAttribute('data-id', task.id);
+    taskElement.ondragstart = drag;
+    taskElement.onclick = () => showTaskDetails(task);
 
-    let color = 'grey'; // Default color
+    let dueDateDisplay = task.dueDate ? formatDueDate(new Date(task.dueDate)) : '';
 
-    if (date < now) {
-        color = 'red'; // Overdue
-    } else if (date.toDateString() === now.toDateString() || date.toDateString() === tomorrow.toDateString()) {
-        color = 'green'; // Today or Tomorrow
+    taskElement.innerHTML = `
+        <strong>${task.title}</strong><br>
+        Priority: ${task.priority} <br>
+        <span class="due-date">${dueDateDisplay}</span>
+    `;
+
+    const columnContainer = document.getElementById(`task-list-${task.columnId}`);
+    if (columnContainer) {
+        columnContainer.appendChild(taskElement);
+    } else {
+        console.warn(`Column ID ${task.columnId} not found for task ${task.id}`);
     }
-
-    return `<span style="color: ${color};">${formattedDate}</span>`;
 }
 
 function allowDrop(event) {
@@ -101,104 +133,112 @@ function drag(event) {
     event.dataTransfer.setData('text', event.target.dataset.id);
 }
 
-async function drop(event, newStatus) {
+async function drop(event, newColumnId) {
     event.preventDefault();
     const taskId = event.dataTransfer.getData('text');
     const taskElement = document.querySelector(`[data-id='${taskId}']`);
 
     if (taskElement) {
-        document.getElementById(newStatus.toLowerCase().replace(' ', '-') + '-tasks').appendChild(taskElement);
-        await updateTaskStatus(taskId, newStatus);
-        sortTasksInColumn(newStatus.toLowerCase().replace(' ', '-') + '-tasks');
+        const columnContainer = document.getElementById(`task-list-${newColumnId}`);
+        if (columnContainer) {
+            columnContainer.appendChild(taskElement);
+        }
+
+        await updateTaskColumn(taskId, newColumnId);
     }
 }
 
-function sortTasksInColumn(columnId) {
-    const column = document.getElementById(columnId);
-    const tasks = Array.from(column.getElementsByClassName('task'));
+async function updateTaskColumn(taskId, newColumnId) {
+    try {
+        const response = await fetch(`/api/tasks/${taskId}/column`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json'  // Ensure correct Content-Type
+            },
+            body: JSON.stringify({ columnId: newColumnId }) // Ensure body is JSON
+        });
 
-    tasks.sort((a, b) => {
-        const taskAId = a.dataset.id;
-        const taskBId = b.dataset.id;
-
-        const taskA = tasksData.find(task => task.id === taskAId);
-        const taskB = tasksData.find(task => task.id === taskBId);
-
-        const dateA = taskA.dueDate ? new Date(taskA.dueDate) : null;
-        const dateB = taskB.dueDate ? new Date(taskB.dueDate) : null;
-        const now = new Date();
-
-        if (!dateA && !dateB) return 0;
-        if (!dateA) return 1;
-        if (!dateB) return -1;
-
-        const isOverdueA = dateA < now;
-        const isOverdueB = dateB < now;
-
-        if (isOverdueA && !isOverdueB) return -1;
-        if (!isOverdueA && isOverdueB) return 1;
-
-        return dateA - dateB;
-    });
-
-    tasks.forEach(task => column.appendChild(task));
+        if (!response.ok) {
+            const errorText = await response.text();
+            console.error("Failed to update task column:", errorText);
+        }
+    } catch (error) {
+        console.error("Error updating task column:", error);
+    }
 }
 
-async function updateTaskStatus(taskId, newStatus) {
+
+
+
+async function updateTaskStatus(taskId, newStatus, newColumnId) {
     try {
-        // Find the task object and update its status
         const task = tasksData.find(t => t.id === taskId);
         if (task) {
             task.status = newStatus;
+            task.columnId = newColumnId;
         }
         await fetch(`/api/tasks/${taskId}/status`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ status: newStatus })
+            body: JSON.stringify({ status: newStatus, column_id: newColumnId }) // Include column_id
         });
     } catch (error) {
         console.error('Error updating task:', error);
     }
 }
 
-// Show task details in the modal
-function showTaskDetails(task) {
-    currentTask = task; // Store the current task for potential updates
 
-    // Populate the modal with task details
+function showTaskDetails(task) {
+    currentTask = task;
+
     document.getElementById('task-title').textContent = task.title;
     document.getElementById('task-description').textContent = task.description;
     document.getElementById('task-priority').textContent = task.priority;
     document.getElementById('task-due-date').textContent = task.dueDate ? new Date(task.dueDate).toLocaleDateString() : 'No due date';
     document.getElementById('task-status').textContent = task.status;
 
-    // Show the modal
     document.getElementById('taskModal').style.display = 'block';
 }
 
-// Close the modal
 function closeModal() {
     document.getElementById('taskModal').style.display = 'none';
 }
 
-document.querySelectorAll(".task-column").forEach(column => {
-    column.addEventListener("dragover", (event) => {
-        event.preventDefault();
-    });
-
-    column.addEventListener("drop", (event) => {
-        event.preventDefault();
-        const taskId = event.dataTransfer.getData("text");
-        const taskElement = document.querySelector(`[data-id='${taskId}']`);
-
-        if (taskElement) {
-            column.appendChild(taskElement);
-            const newStatus = column.dataset.columnId; // Use the dataset column ID for task status
-            updateTaskStatus(taskId, newStatus);
-        }
-    });
+document.addEventListener('DOMContentLoaded', () => {
+    fetchProjectColumns();
 });
 
-// Load data
-fetchProjects();
-fetchTasks();
+function formatDueDate(date) {
+    const now = new Date();
+    const tomorrow = new Date();
+    tomorrow.setDate(now.getDate() + 1);
+
+    const options = { day: '2-digit', month: 'short' };
+    const formattedDate = date.toLocaleDateString('en-GB', options);
+
+    let color = 'grey';
+    if (date < now) {
+        color = 'red';
+    } else if (date.toDateString() === now.toDateString() || date.toDateString() === tomorrow.toDateString()) {
+        color = 'green';
+    }
+    return `<span style="color: ${color};">${formattedDate}</span>`;
+}
+
+function sortByDueDate(a, b) {
+    const dateA = a.dueDate ? new Date(a.dueDate) : null;
+    const dateB = b.dueDate ? new Date(b.dueDate) : null;
+    const now = new Date();
+
+    if (!dateA && !dateB) return 0;
+    if (!dateA) return 1;
+    if (!dateB) return -1;
+
+    const isOverdueA = dateA < now;
+    const isOverdueB = dateB < now;
+
+    if (isOverdueA && !isOverdueB) return -1;
+    if (!isOverdueA && isOverdueB) return 1;
+
+    return dateA - dateB;
+}
