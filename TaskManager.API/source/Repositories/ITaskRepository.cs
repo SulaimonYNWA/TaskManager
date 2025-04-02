@@ -8,8 +8,10 @@ namespace TaskManager.API.source.Repositories
     {
         Task<IEnumerable<TaskModel>> GetAllTasks();
         Task<TaskModel> GetTaskById(int id);
+        Task<IEnumerable<TaskModel>> GetTasksByProjectId(int projectId);
         Task<int> CreateTask(TaskModel task);
         Task<bool> UpdateTask(TaskModel task);
+        Task<bool> UpdateTaskColumn(int taskId, int columnId);
         Task<bool> DeleteTask(int id);
     }
 }

@@ -29,6 +29,18 @@ namespace TaskManager.API.source.Repositories
                column_id AS ColumnId, due_date AS DueDate, created_at AS CreatedAt
         FROM tasks");
         }
+        
+        public async Task<IEnumerable<TaskModel>> GetTasksByProjectId(int projectId)
+        {
+            using var db = CreateConnection();
+            return await db.QueryAsync<TaskModel>(@"
+        SELECT id, title, description, project_id AS ProjectId, 
+               assignee_id AS AssigneeId, status, priority, 
+               estimated_work AS EstimatedWork, progress, 
+               column_id AS ColumnId, due_date AS DueDate, created_at AS CreatedAt
+        FROM tasks 
+        WHERE project_id = @projectId", new { projectId });
+        }
 
 
         public async Task<TaskModel> GetTaskById(int id)
@@ -54,12 +66,32 @@ namespace TaskManager.API.source.Repositories
         {
             using var db = CreateConnection();
             var sql = @"
-                UPDATE tasks 
-                SET title = @Title, description = @Description, project_id = @ProjectId, 
-                    assignee_id = @AssigneeId, status = @Status, priority = @Priority, 
-                    column_id = @ColumnId, due_date = @DueDate, progress = @Progress
-                WHERE id = @Id";
+        UPDATE tasks 
+        SET title = @Title, 
+            description = @Description, 
+            project_id = @ProjectId, 
+            assignee_id = @AssigneeId, 
+            status = @Status, 
+            priority = @Priority, 
+            estimated_work = @EstimatedWork, 
+            progress = @Progress, 
+            column_id = @ColumnId, 
+            due_date = @DueDate,
+            created_at = @CreatedAt
+        WHERE id = @Id";
+    
             return await db.ExecuteAsync(sql, task) > 0;
+        }
+
+        public async Task<bool> UpdateTaskColumns(int taskId, int columnId )
+        {
+            using var db = CreateConnection();
+            var sql = @"
+        UPDATE tasks 
+        SET column_id = @ColumnId
+        WHERE id = @taskId";
+    
+            return await db.ExecuteAsync(sql) > 0;
         }
 
         public async Task<bool> UpdateTaskColumn(int taskId, int columnId)

@@ -11,5 +11,6 @@ namespace TaskManager.API.source.Repositories
         Task<int> CreateProject(Project project);
         Task<bool> UpdateProject(Project project);
         Task<bool> DeleteProject(int id);
+        Task<bool> AddUserToProject(ProjectMember projectMember);
     }
 }
