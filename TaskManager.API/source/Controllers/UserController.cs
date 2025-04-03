@@ -39,4 +39,18 @@ public class UsersController : ControllerBase
         return Ok(user);
     }
     
+    [HttpGet("byID/{id}")]
+    public async Task<ActionResult<User>> GetUserById(int id)
+    {
+        using var connection = new MySqlConnection(_connectionString);
+        
+        var user = await connection.QueryFirstOrDefaultAsync<User>(
+            "SELECT * FROM users WHERE id = @Id", new { Id = id });
+
+        if (user == null)
+            return NotFound(new { message = "User not found" });
+
+        return Ok(user);
+    }
+    
 }
