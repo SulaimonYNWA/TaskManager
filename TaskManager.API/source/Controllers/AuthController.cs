@@ -57,7 +57,7 @@ public class AuthController : ControllerBase
         using var connection = new MySqlConnection(_connectionString);
         
         var existingUser = await connection.QueryFirstOrDefaultAsync<User>(
-            "SELECT * FROM users WHERE email = @Email", new { user.Email });
+            "SELECT * FROM users WHERE username = @Username", new { user.Username });
 
         
         if (existingUser == null)

@@ -25,4 +25,20 @@ public class ProjectsController : ControllerBase
         var projects = await connection.QueryAsync<Project>("SELECT * FROM projects;");
         return Ok(projects);
     }
+    
+    // Get all projects by user_id
+    [Authorize]
+    [HttpGet("user/{userId}")]
+    public async Task<ActionResult<IEnumerable<Project>>> GetProjectsByUserId(int userId)
+    {
+        using var connection = new MySqlConnection(_connectionString);
+        var sql = @"
+            SELECT p.* FROM projects p
+            INNER JOIN project_members pm ON p.id = pm.project_id
+            WHERE pm.user_id = @UserId";
+        
+        var projects = await connection.QueryAsync<Project>(sql, new { UserId = userId });
+
+        return Ok(projects);
+    }
 }
