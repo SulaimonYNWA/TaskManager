@@ -36,33 +36,7 @@ async function fetchProjectColumns() {
         console.error('Error fetching project columns:', error);
     }
 }
-async function getUser(username) {
-    try {
-        const response = await fetch(`/api/users/${username}`, { method: 'GET' });
 
-        if (response.status === 404) {
-            console.warn(`User '${username}' not found!`);
-            return null; // Return null if user is not found
-        }
-
-        if (!response.ok) {
-            throw new Error(`Failed to fetch user data (Status: ${response.status})`);
-        }
-
-        const user = await response.json(); // Parse JSON response
-
-        if (!user || !user.username) {
-            console.warn("User data is missing or invalid.");
-            return null;
-        }
-
-        return user; // ✅ Return the user object
-
-    } catch (error) {
-        console.error('Error getting user:', error);
-        return null; // Return null in case of an error
-    }
-}
 
 
 async function fetchProjects() {
@@ -179,7 +153,6 @@ function renderTask(task) {
     }
 }
 
-
 function showTaskDetails(task) {
     // Get the task details panel, create it if not exists
     let detailsPanel = document.getElementById('task-details-panel');
@@ -191,26 +164,65 @@ function showTaskDetails(task) {
         document.body.appendChild(detailsPanel);
     }
 
-    // Populate task details
-    detailsPanel.innerHTML = `
-        <span class="close-details" onclick="closeTaskDetails()">&times;</span>
-        <h2>${task.title}</h2>
-        <p><strong>Description:</strong> ${task.description || 'No description'}</p>
-        <p><strong>Priority:</strong> ${task.priority}</p>
-        <p><strong>Due Date:</strong> ${task.dueDate ? formatDueDate(new Date(task.dueDate)) : 'Not set'}</p>
-        <p><strong>Status:</strong> ${task.status}</p>
-        <button onclick="updateTaskStatus(${task.id})">Update Status</button>
-    `;
+    getUserByID(task.assigneeId)
+        .then(user => {
+            let assigneeName = user.username;
 
-    // Show the panel
-    detailsPanel.style.right = '0';
+            // Populate task details with editable fields
+            detailsPanel.innerHTML = `
+                <span class="close-details" onclick="closeTaskDetails()">&times;</span>
+                <h2><input type="text" id="task-title" value="${task.title}" class="styled-input" /></h2>
+                
+                <label>Assignee:</label>
+                <select id="task-assignee" class="styled-select">
+                    <option value="${task.assigneeId}" selected>${assigneeName}</option>
+                    <!-- Dynamically populate with other users -->
+                </select>
+
+                <label>Description:</label>
+                <textarea id="task-description" class="styled-textarea">${task.description || ''}</textarea>
+
+                <label>Priority:</label>
+                <select id="task-priority" class="styled-select priority-select">
+                    <option value="Low" class="low-priority" ${task.priority === "Low" ? "selected" : ""}>Low</option>
+                    <option value="Medium" class="medium-priority" ${task.priority === "Medium" ? "selected" : ""}>Medium</option>
+                    <option value="High" class="high-priority" ${task.priority === "High" ? "selected" : ""}>High</option>
+                </select>
+
+                <label>Due Date:</label>
+                <input type="date" id="task-due-date" value="${task.dueDate ? task.dueDate.split('T')[0] : ''}" class="styled-input" />
+
+                <label>Status:</label>
+                <select id="task-status" class="styled-select">
+                    <option value="To Do" ${task.status === "To Do" ? "selected" : ""}>To Do</option>
+                    <option value="In Progress" ${task.status === "In Progress" ? "selected" : ""}>In Progress</option>
+                    <option value="Done" ${task.status === "Done" ? "selected" : ""}>Done</option>
+                </select>
+
+                <button onclick="saveTask(${task.id})" class="save-btn">Save</button>
+            `;
+
+            // Show the panel
+            detailsPanel.style.right = '0';
+
+            // Shift the main task board to the left
+            document.getElementById('main-task-board').classList.add('main-shifted');
+        })
+        .catch(error => {
+            console.error('Error fetching user:', error);
+        });
 }
+
+
 
 function closeTaskDetails() {
     let detailsPanel = document.getElementById('task-details-panel');
     if (detailsPanel) {
         detailsPanel.style.right = '-400px'; // Hide the panel
     }
+
+    // Reset the main task board position
+    document.getElementById('main-task-board').classList.remove('main-shifted');
 }
 
 
@@ -258,22 +270,35 @@ async function updateTaskColumn(taskId, newColumnId) {
 
 
 
+function saveTask(taskId) {
+    const updatedTask = {
+        title: document.getElementById('task-title').value,
+        description: document.getElementById('task-description').value,
+        assigneeId: parseInt(document.getElementById('task-assignee').value),
+        status: document.getElementById('task-status').value,
+        priority: document.getElementById('task-priority').value,
+        dueDate: document.getElementById('task-due-date').value ? new Date(document.getElementById('task-due-date').value).toISOString() : null
+    };
 
-async function updateTaskStatus(taskId, newStatus, newColumnId) {
-    try {
-        const task = tasksData.find(t => t.id === taskId);
-        if (task) {
-            task.status = newStatus;
-            task.columnId = newColumnId;
-        }
-        await fetch(`/api/tasks/${taskId}/status`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ status: newStatus, column_id: newColumnId }) // Include column_id
+    fetch(`/api/tasks/${taskId}`, {
+        method: 'PUT',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(updatedTask)
+    })
+        .then(response => {
+            if (response.ok) {
+                alert("Task updated successfully!");
+                closeTaskDetails(); // Close the details panel after update
+            } else {
+                return response.json().then(data => { throw new Error(data.message || "Failed to update task"); });
+            }
+        })
+        .catch(error => {
+            console.error("Error updating task:", error);
+            alert("Error updating task: " + error.message);
         });
-    } catch (error) {
-        console.error('Error updating task:', error);
-    }
 }
 
 
@@ -321,3 +346,60 @@ function sortByDueDate(a, b) {
     return dateA - dateB;
 }
 
+// USERS -----------
+
+async function getUser(username) {
+    try {
+        const response = await fetch(`/api/users/${username}`, { method: 'GET' });
+
+        if (response.status === 404) {
+            console.warn(`User '${username}' not found!`);
+            return null; // Return null if user is not found
+        }
+
+        if (!response.ok) {
+            throw new Error(`Failed to fetch user data (Status: ${response.status})`);
+        }
+
+        const user = await response.json(); // Parse JSON response
+
+        if (!user || !user.username) {
+            console.warn("User data is missing or invalid.");
+            return null;
+        }
+
+        return user; // ✅ Return the user object
+
+    } catch (error) {
+        console.error('Error getting user:', error);
+        return null; // Return null in case of an error
+    }
+}
+
+async function getUserByID(id) {
+    try {
+        const response = await fetch(`/api/users/byID/${id}`, { method: 'GET' });
+
+        if (response.status === 404) {
+            console.warn(`User '${id}' not found!`);
+            return null; // Return null if user is not found
+        }
+
+        if (!response.ok) {
+            throw new Error(`Failed to fetch user data (Status: ${response.status})`);
+        }
+
+        const user = await response.json(); // Parse JSON response
+
+        if (!user || !user.id) {
+            console.warn("User data is missing or invalid.");
+            return null;
+        }
+
+        return user; // ✅ Return the user object
+
+    } catch (error) {
+        console.error('Error getting user:', error);
+        return null; // Return null in case of an error
+    }
+}

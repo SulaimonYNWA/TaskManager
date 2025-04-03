@@ -28,6 +28,7 @@ body {
     left: 0;
     top: 0;
     bottom: 0;
+    z-index: 1001;
 }
 
 /* Task Board */
@@ -127,6 +128,8 @@ body {
     background-color: #cc0000;
 }
 
+
+/* Task Details Panel */
 .task-details-panel {
     position: fixed;
     top: 0;
@@ -138,7 +141,13 @@ body {
     padding: 20px;
     overflow-y: auto;
     transition: right 0.3s ease-in-out;
-    z-index: 1000;
+    z-index: 1000; /* Task details panel goes behind the sidebar */
+}
+
+/* Transition for the main task board */
+.main-shifted {
+    transform: translateX(-350px);
+    transition: transform 0.3s ease-in-out;
 }
 
 .close-details {
@@ -147,4 +156,99 @@ body {
     right: 15px;
     font-size: 24px;
     cursor: pointer;
+}
+
+
+
+#main-task-board{
+    width: 130vw;
+}
+
+
+/* Task Details Panel */
+#task-details-panel {
+    position: fixed;
+    top: 0;
+    right: -400px;
+    width: 350px;
+    height: 100vh;
+    background: #3A3D4D;
+    color: white;
+    padding: 20px;
+    box-shadow: -5px 0 10px rgba(0, 0, 0, 0.2);
+    transition: right 0.3s ease-in-out;
+    z-index: 1000;
+}
+
+#task-details-panel h2 {
+    margin-bottom: 10px;
+}
+
+#task-details-panel label {
+    display: block;
+    margin-top: 10px;
+    font-size: 14px;
+    font-weight: bold;
+    color: #ddd;
+}
+
+/* Close Button */
+.close-details {
+    position: absolute;
+    top: 10px;
+    right: 15px;
+    font-size: 24px;
+    cursor: pointer;
+    color: #fff;
+}
+
+/* Styled Input Fields */
+.styled-input, .styled-select, .styled-textarea {
+    width: 100%;
+    padding: 8px;
+    margin-top: 5px;
+    border: 1px solid #555;
+    border-radius: 5px;
+    background: #2E303E;
+    color: white;
+    font-size: 14px;
+}
+
+.styled-textarea {
+    height: 80px;
+    resize: none;
+}
+
+/* Priority Colors */
+.priority-select .low-priority {
+    background-color: green;
+    color: white;
+}
+
+.priority-select .medium-priority {
+    background-color: orange;
+    color: black;
+}
+
+.priority-select .high-priority {
+    background-color: red;
+    color: white;
+}
+
+/* Save Button */
+.save-btn {
+    display: block;
+    width: 100%;
+    margin-top: 15px;
+    padding: 10px;
+    background: #4CAF50;
+    color: white;
+    font-size: 16px;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+}
+
+.save-btn:hover {
+    background: #45A049;
 }
