@@ -1,12 +1,12 @@
 async function login() {
-    const email = document.getElementById('login-email').value;
+    const username = document.getElementById('login-username').value;
     const password = document.getElementById('login-password').value;
 
     try {
         const response = await fetch('/api/Auth/login', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({username:"", email: email, passwordHash: password }) // Fix for password field name
+            body: JSON.stringify({username:username, email: "", passwordHash: password }) // Fix for password field name
         });
 
         if (!response.ok) {
@@ -25,6 +25,7 @@ async function login() {
 
 
         localStorage.setItem('token', data.token); // Fix for correct JSON key
+        localStorage.setItem("username", username);
         alert('Login successful!');
         window.location.href = 'index.html'; // Redirect after login
     } catch (error) {
@@ -64,3 +65,5 @@ function showLogin() {
     document.getElementById('register-form').classList.add('hidden');
     document.getElementById('login-form').classList.remove('hidden');
 }
+
+

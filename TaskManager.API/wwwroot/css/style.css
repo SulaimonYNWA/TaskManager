@@ -64,7 +64,12 @@ body {
 .project:hover {
     background: #F1C40F; /* Yellow hover effect */
     color: #000;
-    transform: scale(1.05);
+    transform: scale(1.07);
+}
+.project.selected {
+    background-color: #F1C40F; /* Yellow when selected */
+    color: #000;
+    transform: scale(1.07);
 }
 
 .columns {
@@ -108,56 +113,38 @@ body {
     margin-top: 5px;
 }
 
-/* Modal Styling */
-.modal {
-    display: none;
+.logout-btn {
+    background-color: #ff4d4d;
+    color: white;
+    border: none;
+    padding: 10px 15px;
+    cursor: pointer;
+    border-radius: 5px;
+    font-size: 14px;
+    margin-top: 10px;
+}
+.logout-btn:hover {
+    background-color: #cc0000;
+}
+
+.task-details-panel {
     position: fixed;
     top: 0;
-    right: -100%;
-    width: 50%;
+    right: -400px; /* Start hidden */
+    width: 350px;
     height: 100%;
-    background-color: rgba(41, 43, 55, 0.9); /* Semi-transparent */
-    color: #fff;
-    padding: 20px;
-    transition: right 0.5s ease;
-    z-index: 1000;
-    backdrop-filter: blur(5px); /* Blurred background effect */
-}
-
-/* Modal Content */
-.modal-content {
     background: #3A3D4D;
-    padding: 15px;
-    border-radius: 8px;
-    margin-top: 20px;
+    box-shadow: -2px 0 5px rgba(0, 0, 0, 0.2);
+    padding: 20px;
+    overflow-y: auto;
+    transition: right 0.3s ease-in-out;
+    z-index: 1000;
 }
 
-/* Modal Header */
-.modal-header {
-    font-size: 20px;
-    font-weight: bold;
-    margin-bottom: 15px;
-    display: flex;
-    justify-content: space-between;
-}
-
-/* Close Button */
-.modal-close {
-    background: transparent;
-    color: #fff;
-    border: none;
-    font-size: 20px;
+.close-details {
+    position: absolute;
+    top: 10px;
+    right: 15px;
+    font-size: 24px;
     cursor: pointer;
-    padding: 5px;
 }
-
-.modal-close:hover {
-    color: #F1C40F;
-}
-
-/* Open Modal */
-.modal.open {
-    display: block;
-    right: 0;
-}
-

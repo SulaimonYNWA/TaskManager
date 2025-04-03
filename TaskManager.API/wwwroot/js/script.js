@@ -1,6 +1,11 @@
 let tasksData = [];
 let currentTask = null; // To hold the task clicked for viewing
 
+const username = localStorage.getItem("username"); // Retrieve username from local storage
+console.log(username);
+if (username) {
+    document.getElementById("username-display").textContent =  `Logged in as:  ${username}`;
+}
 
 async function fetchProjectColumns() {
     try {
@@ -31,18 +36,51 @@ async function fetchProjectColumns() {
         console.error('Error fetching project columns:', error);
     }
 }
+async function getUser(username) {
+    try {
+        const response = await fetch(`/api/users/${username}`, { method: 'GET' });
+
+        if (response.status === 404) {
+            console.warn(`User '${username}' not found!`);
+            return null; // Return null if user is not found
+        }
+
+        if (!response.ok) {
+            throw new Error(`Failed to fetch user data (Status: ${response.status})`);
+        }
+
+        const user = await response.json(); // Parse JSON response
+
+        if (!user || !user.username) {
+            console.warn("User data is missing or invalid.");
+            return null;
+        }
+
+        return user; // ✅ Return the user object
+
+    } catch (error) {
+        console.error('Error getting user:', error);
+        return null; // Return null in case of an error
+    }
+}
+
+
 async function fetchProjects() {
     const token = localStorage.getItem('token'); // Retrieve JWT token from localStorage
 
     if (!token) {
-        alert("Unauthorized! Please log in.");
+        alert("Unauthorized!? Please log in.");
         window.location.href = 'login.html'; // Redirect to login page
         return;
     }
     // console.log("JWT Token:", token); // Debugging
-
+    console.log("fetchprojects: username is: ",username);
+    
+    let user = getUser(username);
+    let userID = (await user).id;
+    
     try {
-        const response = await fetch('/api/projects', {
+        const response = await fetch(`/api/projects/user/${userID}`, {
             method: 'GET',
             headers: {
                 'Content-Type': 'application/json',
@@ -52,14 +90,15 @@ async function fetchProjects() {
         
         console.log("Response Status:", response.status);
         if (response.status === 401) {
-            alert("Unauthorized! Please log in again.");
+            alert("Unauthorized!! Please log in again.");
+            window.location.href = 'login.html';
             return;
         }
         
 
         const projects = await response.json();
         const projectsList = document.getElementById('projects-list');
-
+            
         projectsList.innerHTML = projects.map(p =>
             `<div class="project" data-project-id="${p.id}">${p.name}</div>`
         ).join('');
@@ -70,12 +109,27 @@ async function fetchProjects() {
         }
 
         // Add click event to each project
-        document.querySelectorAll('.project').forEach(project => {
+        document.querySelectorAll('.project').forEach((project, index) => {
             project.addEventListener('click', () => {
+                // Remove 'selected' class from all projects
+                document.querySelectorAll('.project').forEach(p => p.classList.remove('selected'));
+
+                // Add 'selected' class to clicked project
+                project.classList.add('selected');
+
+                // Fetch tasks for the selected project
                 const projectId = project.getAttribute('data-project-id');
                 fetchTasks(projectId);
             });
+
+            // Select the first project by default
+            if (index === 0) {
+                project.classList.add('selected');
+                const projectId = project.getAttribute('data-project-id');
+                fetchTasks(projectId);
+            }
         });
+
 
     } catch (error) {
         console.error('Error fetching projects:', error);
@@ -124,6 +178,41 @@ function renderTask(task) {
         console.warn(`Column ID ${task.columnId} not found for task ${task.id}`);
     }
 }
+
+
+function showTaskDetails(task) {
+    // Get the task details panel, create it if not exists
+    let detailsPanel = document.getElementById('task-details-panel');
+
+    if (!detailsPanel) {
+        detailsPanel = document.createElement('div');
+        detailsPanel.id = 'task-details-panel';
+        detailsPanel.classList.add('task-details-panel');
+        document.body.appendChild(detailsPanel);
+    }
+
+    // Populate task details
+    detailsPanel.innerHTML = `
+        <span class="close-details" onclick="closeTaskDetails()">&times;</span>
+        <h2>${task.title}</h2>
+        <p><strong>Description:</strong> ${task.description || 'No description'}</p>
+        <p><strong>Priority:</strong> ${task.priority}</p>
+        <p><strong>Due Date:</strong> ${task.dueDate ? formatDueDate(new Date(task.dueDate)) : 'Not set'}</p>
+        <p><strong>Status:</strong> ${task.status}</p>
+        <button onclick="updateTaskStatus(${task.id})">Update Status</button>
+    `;
+
+    // Show the panel
+    detailsPanel.style.right = '0';
+}
+
+function closeTaskDetails() {
+    let detailsPanel = document.getElementById('task-details-panel');
+    if (detailsPanel) {
+        detailsPanel.style.right = '-400px'; // Hide the panel
+    }
+}
+
 
 function allowDrop(event) {
     event.preventDefault();
@@ -188,17 +277,6 @@ async function updateTaskStatus(taskId, newStatus, newColumnId) {
 }
 
 
-function showTaskDetails(task) {
-    currentTask = task;
-
-    document.getElementById('task-title').textContent = task.title;
-    document.getElementById('task-description').textContent = task.description;
-    document.getElementById('task-priority').textContent = task.priority;
-    document.getElementById('task-due-date').textContent = task.dueDate ? new Date(task.dueDate).toLocaleDateString() : 'No due date';
-    document.getElementById('task-status').textContent = task.status;
-
-    document.getElementById('taskModal').style.display = 'block';
-}
 
 function closeModal() {
     document.getElementById('taskModal').style.display = 'none';
@@ -242,3 +320,4 @@ function sortByDueDate(a, b) {
 
     return dateA - dateB;
 }
+

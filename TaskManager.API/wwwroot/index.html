@@ -4,15 +4,15 @@
     <meta charset="utf-8">
     <title>Task Manager Dashboard</title>
     <link rel="stylesheet" href="/css/style.css" asp-append-version="true">
-    <style>
-       
-    </style>
+  
 </head>
 <body>
 <div class="container">
     <!-- Sidebar for Projects -->
     <aside class="sidebar">
-        <h2>Projects</h2>
+        <h2 id="username-display"></h2>
+        <button class="logout-btn" onclick="logout()">Logout</button>
+        <h3>Projects</h3>
         <div id="projects-list"></div>
     </aside>
 
@@ -20,26 +20,28 @@
     <main class="task-board">
         <h1>Task Board</h1>
         <div id="task-board" class="columns">
-            
-        </div>  <!-- Dynamic columns will be added here -->
+            <!-- Dynamic columns will be added here -->
+        </div>
     </main>
 </div>
 
-<!-- Modal for task details -->
-<div id="taskModal" class="modal">
-    <div class="modal-content">
-        <span class="close" onclick="closeModal()">&times;</span>
-        <h2 id="task-title"></h2>
-        <p><strong>Description:</strong> <span id="task-description"></span></p>
-        <p><strong>Priority:</strong> <span id="task-priority"></span></p>
-        <p><strong>Due Date:</strong> <span id="task-due-date"></span></p>
-        <p><strong>Status:</strong> <span id="task-status"></span></p>
-        <button onclick="updateTaskStatus()">Update Status</button>
-    </div>
+<!-- Task Details Panel (Initially hidden, shown by JS) -->
+<div id="task-details-panel" class="task-details-panel">
+    <!-- Content will be dynamically added by JS -->
 </div>
 
 <script src="/js/script.js"></script>
 <script src="/js/projects.js"></script>
+<script>
+    function logout() {
+        // Clear any stored session data
+        localStorage.removeItem("user");
+        sessionStorage.removeItem("user");
+
+        // Redirect to login page
+        window.location.href = "login.html";
+    }
+</script>
 
 </body>
 </html>
