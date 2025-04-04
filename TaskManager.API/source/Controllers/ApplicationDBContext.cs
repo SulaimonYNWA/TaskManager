@@ -15,17 +15,12 @@ namespace TaskManager.API.Data
         {
             modelBuilder.Entity<Project>()
                 .HasMany(p => p.Tasks)
-                .WithOne(t => t.Project)
+                .WithOne() // Remove navigation property reference
                 .HasForeignKey(t => t.ProjectId);
-
-            modelBuilder.Entity<Project>()
-                .HasMany(p => p.Columns)
-                .WithOne(c => c.Project)
-                .HasForeignKey(c => c.ProjectId);
 
             modelBuilder.Entity<Column>()
                 .HasMany(c => c.Tasks)
-                .WithOne(t => t.Column)
+                .WithOne() // Remove navigation property reference
                 .HasForeignKey(t => t.ColumnId);
         }
     }
