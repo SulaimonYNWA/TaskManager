@@ -4,19 +4,28 @@ using System.Threading.Tasks;
 using TaskManager.API.Models;
 using TaskManager.API.source.Repositories;
 using TaskManager.API.source.DTO;
+using MySql.Data.MySqlClient;
+using Dapper;
+using Microsoft.AspNetCore.Authorization;
+
 
 
 [Route("api/[controller]")]
 [ApiController]
 public class TasksController : ControllerBase
 {
+    private readonly string _connectionString;
+    private readonly IConfiguration _configuration;
     private readonly ITaskRepository _taskRepository;
 
-    public TasksController(ITaskRepository taskRepository)
+    public TasksController(IConfiguration configuration, ITaskRepository taskRepository)
     {
+        _connectionString = configuration.GetConnectionString("DefaultConnection");
+        _configuration = configuration;
         _taskRepository = taskRepository;
-    }
 
+    }
+    
     // [HttpGet]
     // public async Task<ActionResult<IEnumerable<TaskModel>>> GetAll()
     // {
@@ -110,6 +119,57 @@ public class TasksController : ControllerBase
 
         return NoContent();
     }
+    
+    /// <summary>
+    /// Adds a new task to the database.
+    /// </summary>
+    // [Authorize] // Requires authentication
+    [HttpPost("add")] 
+    public async Task<ActionResult> AddTask([FromBody] TaskModel task)
+    {
+        if (string.IsNullOrWhiteSpace(task.Title) || task.ProjectId == null || task.ColumnId == null)
+        {
+            return BadRequest("Title, projectId, and columnId are required.");
+        }
+    
+        using var connection = new MySqlConnection(_connectionString);
+
+        var sql = @"INSERT INTO tasks (title, description, project_id, column_id, assignee_id, status, priority, estimated_work, progress, due_date, created_at) 
+                VALUES (@Title, @Description, @ProjectId, @ColumnId, @AssigneeId, @Status, @Priority, @EstimatedWork, @Progress, @DueDate, NOW());
+                SELECT LAST_INSERT_ID();";  // Get last inserted ID
+
+        try
+        {
+            var taskId = await connection.ExecuteScalarAsync<int>(sql, new
+            {
+                Title = task.Title,
+                Description = task.Description ?? "",
+                ColumnId = task.ColumnId,  // Ensure ColumnId is passed
+                AssigneeId = task.AssigneeId ?? (int?)null,
+                ProjectId = task.ProjectId,
+                Status = task.Status ?? "To Do",
+                Priority = task.Priority ?? "Medium",
+                EstimatedWork = task.EstimatedWork ?? "Short (1-4 hours)",
+                Progress = task.Progress ?? "Not Started",
+                DueDate = task.DueDate ?? (DateTime?)null
+            });
+
+            if (taskId > 0)
+            {
+                task.Id = taskId; // Assign the generated ID
+                return Ok(task);  // Return the created task with ID
+            }
+            return BadRequest("Failed to create task.");
+        }
+        catch (Exception ex)
+        {
+            // Log the full exception message and stack trace
+            Console.Error.WriteLine($"Error creating task: {ex.Message}");
+            Console.Error.WriteLine(ex.StackTrace);
+            return BadRequest($"An error occurred while creating the task: {ex.Message}");
+        }
+    }
+
 
 }
 

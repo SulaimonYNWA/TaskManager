@@ -53,4 +53,18 @@ public class UsersController : ControllerBase
         return Ok(user);
     }
     
+    [HttpGet("project/{projectId}")]
+    public async Task<ActionResult<IEnumerable<User>>> GetUsersByProjectsId(int projectId)
+    {
+        using var connection = new MySqlConnection(_connectionString);
+        var sql = @"
+            SELECT u.* FROM users u
+            INNER JOIN project_members pm ON u.id = pm.user_id
+            WHERE pm.project_id = @ProjectId";
+        
+        var users = await connection.QueryAsync<User>(sql, new { ProjectId = projectId });
+
+        return Ok(users);
+    }
+    
 }
