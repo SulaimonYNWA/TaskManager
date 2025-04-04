@@ -41,4 +41,63 @@ public class ProjectsController : ControllerBase
 
         return Ok(projects);
     }
+    
+    // [Authorize]
+    [HttpPost("create")]
+    public async Task<ActionResult<Project>> CreateProject([FromBody] Project project)
+    {
+        if (string.IsNullOrWhiteSpace(project.Name) || project.OwnerId == 0)
+        {
+            return BadRequest("Project name and owner_id are required.");
+        }
+
+        using var connection = new MySqlConnection(_connectionString);
+        await connection.OpenAsync();
+
+        using var transaction = await connection.BeginTransactionAsync();
+
+        try
+        {
+            var sql = @"
+            INSERT INTO projects (name, description, owner_id, created_at)
+            VALUES (@Name, @Description, @OwnerId, NOW());
+            SELECT LAST_INSERT_ID();";
+
+            var projectId = await connection.ExecuteScalarAsync<int>(sql, new
+            {
+                Name = project.Name,
+                Description = project.Description ?? "",
+                OwnerId = project.OwnerId
+            }, transaction);
+
+            if (projectId > 0)
+            {
+                var memberSql = @"
+                INSERT INTO project_members (project_id, user_id, role)
+                VALUES (@ProjectId, @UserId, 'Owner');";
+
+                await connection.ExecuteAsync(memberSql, new
+                {
+                    ProjectId = projectId,
+                    UserId = project.OwnerId
+                }, transaction);
+
+                await transaction.CommitAsync();
+
+                project.Id = projectId;
+                return Ok(project);
+            }
+
+            await transaction.RollbackAsync();
+            return BadRequest("Failed to create project.");
+        }
+        catch (Exception ex)
+        {
+            await transaction.RollbackAsync();
+            Console.Error.WriteLine($"Error creating project: {ex.Message}");
+            return StatusCode(500, "An error occurred while creating the project.");
+        }
+    }
+
+
 }
