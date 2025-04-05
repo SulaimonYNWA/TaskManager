@@ -170,6 +170,23 @@ public class TasksController : ControllerBase
         }
     }
 
+    [HttpDelete]
+    public async Task<ActionResult> DeleteTaskByID([FromQuery] int id)
+    {
+        if (id <= 0)
+        {
+            return BadRequest("Invalid task ID.");
+        }
+
+        var deleted = await _taskRepository.DeleteTask(id);
+
+        if (deleted)
+        {
+            return Ok(new { message = $"Task with ID {id} was deleted successfully." });
+        }
+
+        return NotFound(new { message = $"Task with ID {id} not found or could not be deleted." });
+    }
 
 }
 
