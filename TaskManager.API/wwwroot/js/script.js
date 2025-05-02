@@ -1,231 +1,741 @@
+// State Management
 let tasksData = [];
-let currentTask = null; // To hold the task clicked for viewing
+let projectsData = [];
+let currentTask = null;
+let currentProjectId = null;
+let isLoading = false;
 
-const username = localStorage.getItem("username"); // Retrieve username from local storage
-console.log(username);
-if (username) {
-    document.getElementById("username-display").textContent =  `Logged in as:  ${username}`;
-}
+// DOM Elements
+const dom = {
+    menuToggle: document.querySelector('.menu-toggle'),
+    sidebar: document.querySelector('.sidebar'),
+    logoutBtn: document.querySelector('.logout-btn'),
+    usernameDisplay: document.getElementById('username-display'),
+    projectsList: document.getElementById('projects-list'),
+    taskBoard: document.getElementById('task-board'),
+    taskDetailsPanel: document.getElementById('task-details-panel'),
+    addTaskMainBtn: document.getElementById('add-task-main-btn'),
+    overlay: null
+};
 
-async function fetchProjectColumns() {
-    try {
-        const response = await fetch('/api/ProjectColumns');
-        const columns = await response.json();
+// Initialize the app
+document.addEventListener('DOMContentLoaded', () => {
+    checkAuth();
+    initEventListeners();
+    loadInitialData();
+    createOverlay();
+});
 
-        const columnsContainer = document.querySelector('.columns');
-        columnsContainer.innerHTML = ''; // Clear existing columns
+// Authentication
+function checkAuth() {
+    const username = localStorage.getItem("username");
+    const token = localStorage.getItem("token");
 
-        columns.forEach(column => {
-            const columnElement = document.createElement('div');
-            columnElement.classList.add('column');
-            columnElement.id = `column-${column.id}`;
-            columnElement.dataset.columnId = column.id;
-            columnElement.ondragover = allowDrop;
-            columnElement.ondrop = event => drop(event, column.id);
-
-            columnElement.innerHTML = `
-                <h3>${column.name}</h3>
-                <div id="task-list-${column.id}" class="task-list"></div>
-            `;
-
-            columnsContainer.appendChild(columnElement);
-        });
-
-        fetchTasks(); // Fetch tasks after columns are created
-    } catch (error) {
-        console.error('Error fetching project columns:', error);
+    if (!username || !token) {
+        window.location.href = "login.html";
+        return false;
     }
+
+    // Remove or comment out this line:
+    // dom.usernameDisplay.textContent = `Logged in as: ${username}`;
+
+    // Add this instead to create the avatar:
+    createUserAvatar(username);
+
+    return true;
 }
 
+function createUserAvatar(username) {
+    const initials = username.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase();
 
+    const avatar = document.createElement('div');
+    avatar.className = 'user-avatar';
+    avatar.textContent = initials;
+    avatar.dataset.username = username; // Store username in dataset
 
-async function fetchProjects() {
-    const token = localStorage.getItem('token'); // Retrieve JWT token from localStorage
+    // Add click event to show full name
+    avatar.addEventListener('click', function() {
+        showUsernameTooltip(this);
+    });
 
-    if (!token) {
-        alert("Unauthorized!? Please log in.");
-        window.location.href = 'login.html'; // Redirect to login page
+    dom.logoutBtn.insertAdjacentElement('beforebegin', avatar);
+}
+
+function showUsernameTooltip(avatarElement) {
+    // Remove any existing tooltip first
+    const existingTooltip = document.querySelector('.username-tooltip');
+    if (existingTooltip) {
+        existingTooltip.remove();
         return;
     }
-    // console.log("JWT Token:", token); // Debugging
-    console.log("fetchprojects: username is: ",username);
+
+    const username = avatarElement.dataset.username;
+    const tooltip = document.createElement('div');
+    tooltip.className = 'username-tooltip';
+    tooltip.textContent = username;
+
+    // Position it centered below the avatar
+    const avatarRect = avatarElement.getBoundingClientRect();
+    tooltip.style.position = 'fixed';
+    tooltip.style.top = `${avatarRect.bottom + 10}px`;
+    tooltip.style.left = `${avatarRect.left + (avatarRect.width / 2)}px`;
+    tooltip.style.transform = 'translateX(-50%)';
+
+    document.body.appendChild(tooltip);
+
+    // Auto-close after 3 seconds
+    const autoCloseTimer = setTimeout(() => {
+        tooltip.remove();
+    }, 2000);
+
+    // Close when clicking anywhere else or when scrolling
+    const closeTooltip = () => {
+        clearTimeout(autoCloseTimer);
+        tooltip.remove();
+        document.removeEventListener('click', handleOutsideClick);
+        window.removeEventListener('scroll', closeTooltip);
+    };
+
+    const handleOutsideClick = (e) => {
+        if (!avatarElement.contains(e.target) && !tooltip.contains(e.target)) {
+            closeTooltip();
+        }
+    };
+
+    // Add event listeners with proper cleanup
+    setTimeout(() => {
+        document.addEventListener('click', handleOutsideClick);
+        window.addEventListener('scroll', closeTooltip);
+    }, 0);
+
+    // Cleanup function for when avatar is removed
+    avatarElement.cleanupTooltip = closeTooltip;
+}
+
+function logout() {
+    localStorage.removeItem("token");
+    localStorage.removeItem("username");
+    window.location.href = "login.html";
+}
+
+// DOM Utilities
+function createOverlay() {
+    const overlay = document.createElement('div');
+    overlay.className = 'overlay';
+    overlay.onclick = closeTaskDetails;
+    document.body.appendChild(overlay);
+    dom.overlay = overlay;
+}
+
+function initEventListeners() {
     
-    let user = getUser(username);
-    let userID = (await user).id;
-    
+
+    // Main Add Task Button
+    dom.addTaskMainBtn.addEventListener('click', () => {
+        if (!currentProjectId) {
+            alert("Please select a project first");
+            return;
+        }
+        const firstColumn = document.querySelector('.column');
+        if (firstColumn) {
+            showAddTaskModal(firstColumn.dataset.columnId);
+        } else {
+            alert("No columns available. Please wait...");
+        }
+    });
+}
+
+// Initial data loading
+async function loadInitialData() {
+    if (!checkAuth()) return;
+
     try {
-        const response = await fetch(`/api/projects/user/${userID}`, {
+        isLoading = true;
+        projectsData = await fetchProjects();
+
+        if (projectsData && projectsData.length > 0) {
+            currentProjectId = projectsData[0].id;
+            renderProjects(projectsData);
+            await loadProjectData(currentProjectId);
+        } else {
+            dom.projectsList.innerHTML = '<div class="no-projects">No projects available</div>';
+        }
+    } catch (error) {
+        console.error('Initial data loading error:', error);
+        showError("Failed to load initial data. Please refresh the page.");
+    } finally {
+        isLoading = false;
+    }
+}
+
+// Project Functions
+// Add these functions to your JavaScript
+
+async function fetchProjects() {
+    const token = localStorage.getItem('token');
+    const username = localStorage.getItem("username");
+
+    try {
+        // First get the current user
+        const user = await getUser(username);
+        if (!user) throw new Error("User not found");
+
+        // Then get projects for this user
+        const response = await fetch(`/api/projects/user/${user.id}`, {
             method: 'GET',
             headers: {
                 'Content-Type': 'application/json',
-                'Authorization': `Bearer ${token}` // Attach token in the request
+                'Authorization': `Bearer ${token}`
             }
         });
-        
-        console.log("Response Status:", response.status);
+
         if (response.status === 401) {
-            alert("Unauthorized!! Please log in again.");
             window.location.href = 'login.html';
-            return;
-        }
-        
-
-        const projects = await response.json();
-        const projectsList = document.getElementById('projects-list');
-            
-        projectsList.innerHTML = projects.map(p =>
-            `<div class="project" data-project-id="${p.id}">${p.name}</div>`
-        ).join('');
-
-        // Set default active project (first one)
-        if (projects.length > 0) {
-            fetchTasks(projects[0].id);
+            return null;
         }
 
-        // Add click event to each project
-        document.querySelectorAll('.project').forEach((project, index) => {
-            project.addEventListener('click', () => {
-                // Remove 'selected' class from all projects
-                document.querySelectorAll('.project').forEach(p => p.classList.remove('selected'));
+        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
 
-                // Add 'selected' class to clicked project
-                project.classList.add('selected');
-
-                // Fetch tasks for the selected project
-                const projectId = project.getAttribute('data-project-id');
-                fetchTasks(projectId);
-            });
-
-            // Select the first project by default
-            if (index === 0) {
-                project.classList.add('selected');
-                const projectId = project.getAttribute('data-project-id');
-                fetchTasks(projectId);
-            }
-        });
-
-
+        return await response.json();
     } catch (error) {
         console.error('Error fetching projects:', error);
-        alert("Error fetching projects. Please try again.");
+        showError("Error loading projects. Please try again.");
+        return [];
     }
 }
-fetchProjects();
 
+async function createProject(projectData) {
+    const token = localStorage.getItem('token');
+
+    try {
+        const response = await fetch('/api/projects/create', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify(projectData)
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => null);
+            throw new Error(errorData?.message || `HTTP error! status: ${response.status}`);
+        }
+
+        return await response.json();
+    } catch (error) {
+        console.error('Error creating project:', error);
+        showError(error.message || 'Failed to create project. Please try again.');
+        throw error;
+    }
+}
+
+async function deleteProject(projectId) {
+    const token = localStorage.getItem('token');
+
+    try {
+        const response = await fetch(`/api/projects/${projectId}`, {
+            method: 'DELETE',
+            headers: {
+                'Authorization': `Bearer ${token}`
+            }
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => null);
+            throw new Error(errorData?.message || `HTTP error! status: ${response.status}`);
+        }
+
+        return true;
+    } catch (error) {
+        console.error('Error deleting project:', error);
+        showError(error.message || 'Failed to delete project. Please try again.');
+        throw error;
+    }
+}
+
+async function loadProjectData(projectId) {
+    try {
+        await Promise.all([
+            fetchProjectColumns(projectId),
+            fetchTasks(projectId)
+        ]);
+    } catch (error) {
+        console.error('Error loading project data:', error);
+        showError("Error loading project details. Please try again.");
+    }
+}
+
+// Update your renderProjects function
+function renderProjects(projects) {
+    const projectsContainer = document.createElement('div');
+    projectsContainer.className = 'projects-container';
+
+    // Add Create Project button
+    const createProjectBtn = document.createElement('button');
+    createProjectBtn.className = 'create-project-btn';
+    createProjectBtn.innerHTML = '<i class="fas fa-plus"></i> Create Project';
+    createProjectBtn.addEventListener('click', showCreateProjectModal);
+    projectsContainer.appendChild(createProjectBtn);
+
+    // Add projects list
+    const projectsList = document.createElement('div');
+    projectsList.className = 'projects-list';
+
+    projects.forEach(project => {
+        const projectElement = document.createElement('div');
+        projectElement.className = `project ${project.id === currentProjectId ? 'active' : ''}`;
+        projectElement.dataset.projectId = project.id;
+
+        projectElement.innerHTML = `
+            <div class="project-content">
+                <span class="project-name">${project.name}</span>
+                <div class="project-actions">
+                    <button class="edit-project-btn" data-project-id="${project.id}">
+                        <i class="fas fa-pencil-alt"></i>
+                    </button>
+                    <button class="delete-project-btn" data-project-id="${project.id}">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                </div>
+            </div>
+        `;
+
+        projectElement.addEventListener('click', async (e) => {
+            // Don't switch projects if clicking on action buttons
+            if (e.target.closest('.project-actions')) return;
+
+            const projectId = project.dataset.projectId;
+            if (projectId === currentProjectId || isLoading) return;
+
+            currentProjectId = projectId;
+            document.querySelectorAll('.project').forEach(p =>
+                p.classList.remove('active'));
+            project.classList.add('active');
+
+            await loadProjectData(projectId);
+        });
+
+        // Add edit/delete event listeners
+        projectElement.querySelector('.edit-project-btn').addEventListener('click', (e) => {
+            e.stopPropagation();
+            editProject(project.id);
+        });
+
+        projectElement.querySelector('.delete-project-btn').addEventListener('click', (e) => {
+            e.stopPropagation();
+            deleteProject(project.id);
+        });
+
+        projectsList.appendChild(projectElement);
+    });
+
+    projectsContainer.appendChild(projectsList);
+    dom.projectsList.replaceWith(projectsContainer);
+    dom.projectsList = projectsContainer; // Update reference
+}
+
+// Add these new functions
+function showCreateProjectModal() {
+    // Implement your modal logic here
+    console.log("Create project modal shown");
+}
+
+function editProject(projectId) {
+    // Implement edit functionality
+    console.log("Editing project:", projectId);
+}
+
+function deleteProject(projectId) {
+    if (confirm("Are you sure you want to delete this project?")) {
+        console.log("Deleting project:", projectId);
+        // Add your delete API call here
+    }
+}
+
+// Column Functions
+async function fetchProjectColumns() {
+    if (!currentProjectId) return;
+
+    try {
+        const response = await fetch(`/api/ProjectColumns?projectId=${currentProjectId}`);
+        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+        const columns = await response.json();
+        renderColumns(columns);
+    } catch (error) {
+        console.error('Error fetching columns:', error);
+        showError("Error loading columns. Please try again.");
+    }
+}
+
+function renderColumns(columns) {
+    dom.taskBoard.innerHTML = '';
+
+    columns.forEach(column => {
+        const columnElement = document.createElement('div');
+        columnElement.classList.add('column');
+        columnElement.id = `column-${column.id}`;
+        columnElement.dataset.columnId = column.id;
+        columnElement.ondragover = allowDrop;
+        columnElement.ondrop = event => drop(event, column.id);
+
+        const taskCount = tasksData.filter(t => t.columnId === column.id).length;
+
+        columnElement.innerHTML = `
+            <div class="column-header">
+                <div class="column-title">
+                    <h3>${column.name}</h3>
+                    <span class="task-count">${taskCount}</span>
+                </div>
+                <button class="add-task-btn" data-column-id="${column.id}">
+                    <i class="fas fa-plus"></i>
+                </button>
+            </div>
+            <div id="task-list-${column.id}" class="task-list"></div>
+        `;
+
+        dom.taskBoard.appendChild(columnElement);
+
+        // Add event listener to the new button
+        columnElement.querySelector('.add-task-btn').addEventListener('click', (e) => {
+            e.stopPropagation();
+            showAddTaskModal(column.id);
+        });
+    });
+}
+
+// Task Functions
+function showAddTaskModal(columnId) {
+    const column = document.querySelector(`.column[data-column-id="${columnId}"] .task-list`);
+    if (!column) {
+        console.error(`Column with ID ${columnId} not found`);
+        return;
+    }
+
+    // Remove any existing forms
+    document.querySelectorAll('.quick-add-form').forEach(form => form.remove());
+
+    const form = document.createElement('div');
+    form.className = 'task quick-add-form';
+    form.innerHTML = `
+        <form class="quick-task-form">
+            <input type="text" class="quick-task-title" placeholder="Task title" required autofocus>
+            <div class="quick-task-actions">
+                <input type="date" class="quick-task-date">
+                <button type="submit" class="quick-add-submit">Add</button>
+                <button type="button" class="quick-add-cancel">×</button>
+            </div>
+        </form>
+    `;
+
+    column.prepend(form);
+
+    // Focus on title field immediately
+    form.querySelector('.quick-task-title').focus();
+
+    // Submit handler
+    form.querySelector('.quick-task-form').addEventListener('submit', (e) => {
+        e.preventDefault();
+        handleQuickAddTask(columnId);
+    });
+
+    // Cancel handler
+    form.querySelector('.quick-add-cancel').addEventListener('click', () => {
+        form.remove();
+    });
+}
+
+async function handleQuickAddTask(columnId) {
+    const form = document.querySelector(`.column[data-column-id="${columnId}"] .quick-task-form`);
+    if (!form) return;
+
+    const titleInput = form.querySelector('.quick-task-title');
+    const dueDateInput = form.querySelector('.quick-task-date');
+
+    if (!titleInput.value.trim()) {
+        titleInput.focus();
+        showError('Task title cannot be empty');
+        return;
+    }
+
+    try {
+        const response = await fetch('/api/tasks/add', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${localStorage.getItem('token')}`
+            },
+            body: JSON.stringify({
+                title: titleInput.value.trim(),
+                dueDate: dueDateInput.value || null,
+                columnId: parseInt(columnId),
+                projectId: currentProjectId,
+                priority: 'Medium',
+                status: 'To Do'
+            })
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => null);
+            throw new Error(errorData?.message || `HTTP error! status: ${response.status}`);
+        }
+
+        const newTask = await response.json();
+        form.remove();
+        await fetchTasks(currentProjectId);
+        return newTask;
+    } catch (error) {
+        console.error('Error adding task:', error);
+        showError(error.message || 'Failed to add task. Please try again.');
+    }
+}
 
 async function fetchTasks(projectId) {
+    if (!projectId) return;
+
     try {
         const response = await fetch(`/api/tasks?projectId=${projectId}`);
-        const tasksData = await response.json();
+        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
 
-        tasksData.sort((a, b) => sortByDueDate(a, b));
+        tasksData = await response.json();
 
-        document.querySelectorAll('.task-list').forEach(list => list.innerHTML = '');
+        // Enhance tasks with assignee names
+        await Promise.all(tasksData.map(async task => {
+            if (task.assigneeId) {
+                const user = await getUserByID(task.assigneeId);
+                task.assigneeName = user?.username || null;
+            }
+            return task;
+        }));
 
-        tasksData.forEach(task => renderTask(task));
+        renderAllTasks(tasksData);
     } catch (error) {
         console.error('Error fetching tasks:', error);
+        showError("Error loading tasks. Please try again.");
     }
 }
 
+function renderAllTasks(tasks) {
+    document.querySelectorAll('.task-list').forEach(list => {
+        list.innerHTML = '';
+    });
+
+    tasks.sort(sortByDueDate).forEach(task => renderTask(task));
+    updateTaskCounts();
+}
 
 function renderTask(task) {
     const taskElement = document.createElement('div');
-    taskElement.classList.add('task');
-    taskElement.setAttribute('draggable', 'true');
-    taskElement.setAttribute('data-id', task.id);
+    taskElement.className = 'task';
+    taskElement.dataset.id = task.id;
+    taskElement.draggable = true;
     taskElement.ondragstart = drag;
     taskElement.onclick = () => showTaskDetails(task);
 
-    let dueDateDisplay = task.dueDate ? formatDueDate(new Date(task.dueDate)) : '';
+    const dueDateDisplay = task.dueDate ? formatDueDate(new Date(task.dueDate)) : 'No due date';
 
     taskElement.innerHTML = `
-        <strong>${task.title}</strong><br>
-        Priority: ${task.priority} <br>
-        <span class="due-date">${dueDateDisplay}</span>
+        <strong>${task.title}</strong>
+        <div class="task-meta">
+            <span class="priority priority-${task.priority.toLowerCase()}">${task.priority}</span>
+            <span class="due-date">${dueDateDisplay}</span>
+            ${task.assigneeName ? `<span class="assignee-badge">${task.assigneeName.charAt(0).toUpperCase()}</span>` : ''}
+        </div>
     `;
 
     const columnContainer = document.getElementById(`task-list-${task.columnId}`);
-    if (columnContainer) {
-        columnContainer.appendChild(taskElement);
-    } else {
-        console.warn(`Column ID ${task.columnId} not found for task ${task.id}`);
-    }
+    if (columnContainer) columnContainer.appendChild(taskElement);
 }
 
+// Task Details Functions
 function showTaskDetails(task) {
-    // Get the task details panel, create it if not exists
-    let detailsPanel = document.getElementById('task-details-panel');
+    const detailsPanel = dom.taskDetailsPanel;
+    currentTask = task;
 
-    if (!detailsPanel) {
-        detailsPanel = document.createElement('div');
-        detailsPanel.id = 'task-details-panel';
-        detailsPanel.classList.add('task-details-panel');
-        document.body.appendChild(detailsPanel);
-    }
+    detailsPanel.innerHTML = `
+        <span class="close-details" onclick="closeTaskDetails()">&times;</span>
+        <h2><input type="text" id="task-title" value="${task.title}" class="styled-input" /></h2>
+        
+        <div class="detail-section">
+            <h3>Assignee</h3>
+            <div class="assignee-container">
+                <div class="assignee-avatar" onclick="toggleAssigneeDropdown(${task.projectId}, ${task.assigneeId || 0})">
+                    ${task.assigneeName ? task.assigneeName.charAt(0).toUpperCase() : 'U'}
+                </div>
+                <span class="assignee-name">${task.assigneeName || 'Unassigned'}</span>
+            </div>
+        </div>
 
-    getUserByID(task.assigneeId)
-        .then(user => {
-            let assigneeName = user.username;
+        <div class="detail-section">
+            <h3>Description</h3>
+            <textarea id="task-description" class="styled-textarea">${task.description || ''}</textarea>
+        </div>
 
-            // Populate task details with editable fields
-            detailsPanel.innerHTML = `
-                <span class="close-details" onclick="closeTaskDetails()">&times;</span>
-                <h2><input type="text" id="task-title" value="${task.title}" class="styled-input" /></h2>
-                
-                <label>Assignee:</label>
-                <select id="task-assignee" class="styled-select">
-                    <option value="${task.assigneeId}" selected>${assigneeName}</option>
-                    <!-- Dynamically populate with other users -->
-                </select>
+        <div class="detail-section">
+            <h3>Details</h3>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Priority</label>
+                    <select id="task-priority" class="styled-select">
+                        <option value="Low" ${task.priority === "Low" ? "selected" : ""}>Low</option>
+                        <option value="Medium" ${task.priority === "Medium" ? "selected" : ""}>Medium</option>
+                        <option value="High" ${task.priority === "High" ? "selected" : ""}>High</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Due Date</label>
+                    <input type="date" id="task-due-date" class="styled-input" 
+                           value="${task.dueDate ? task.dueDate.split('T')[0] : ''}">
+                </div>
+            </div>
+        </div>
 
-                <label>Description:</label>
-                <textarea id="task-description" class="styled-textarea">${task.description || ''}</textarea>
+        <div class="task-actions">
+            <button class="btn btn-primary" onclick="saveTask(${task.id})">
+                <i class="fas fa-save"></i> Save Changes
+            </button>
+            <button class="btn btn-danger" onclick="deleteTask(${task.id})">
+                <i class="fas fa-trash"></i> Delete Task
+            </button>
+        </div>
+    `;
 
-                <label>Priority:</label>
-                <select id="task-priority" class="styled-select priority-select">
-                    <option value="Low" class="low-priority" ${task.priority === "Low" ? "selected" : ""}>Low</option>
-                    <option value="Medium" class="medium-priority" ${task.priority === "Medium" ? "selected" : ""}>Medium</option>
-                    <option value="High" class="high-priority" ${task.priority === "High" ? "selected" : ""}>High</option>
-                </select>
-
-                <label>Due Date:</label>
-                <input type="date" id="task-due-date" value="${task.dueDate ? task.dueDate.split('T')[0] : ''}" class="styled-input" />
-
-                <label>Status:</label>
-                <select id="task-status" class="styled-select">
-                    <option value="To Do" ${task.status === "To Do" ? "selected" : ""}>To Do</option>
-                    <option value="In Progress" ${task.status === "In Progress" ? "selected" : ""}>In Progress</option>
-                    <option value="Done" ${task.status === "Done" ? "selected" : ""}>Done</option>
-                </select>
-
-                <button onclick="saveTask(${task.id})" class="save-btn">Save</button>
-            `;
-
-            // Show the panel
-            detailsPanel.style.right = '0';
-
-            // Shift the main task board to the left
-            document.getElementById('main-task-board').classList.add('main-shifted');
-        })
-        .catch(error => {
-            console.error('Error fetching user:', error);
-        });
+    detailsPanel.style.right = '0';
+    dom.overlay.style.display = 'block';
 }
 
+async function toggleAssigneeDropdown(projectId, currentAssigneeId) {
+    try {
+        const response = await fetch(`/api/users/project/${projectId}`);
+        if (!response.ok) throw new Error('Failed to fetch users');
 
+        const users = await response.json();
+        if (!users || users.length === 0) {
+            showError('No team members available');
+            return;
+        }
+
+        // Create dropdown element
+        const dropdown = document.createElement('select');
+        dropdown.id = 'assignee-dropdown';
+        dropdown.className = 'styled-select';
+
+        // Add "Unassigned" option
+        const unassignedOption = document.createElement('option');
+        unassignedOption.value = '';
+        unassignedOption.textContent = 'Unassigned';
+        if (!currentAssigneeId) unassignedOption.selected = true;
+        dropdown.appendChild(unassignedOption);
+
+        // Add user options
+        users.forEach(user => {
+            const option = document.createElement('option');
+            option.value = user.id;
+            option.textContent = user.username;
+            if (user.id === currentAssigneeId) option.selected = true;
+            dropdown.appendChild(option);
+        });
+
+        // Insert dropdown
+        const container = document.querySelector('.assignee-container');
+        container.appendChild(dropdown);
+
+        // Handle selection
+        dropdown.addEventListener('change', async () => {
+            const selectedValue = dropdown.value;
+            const selectedOption = dropdown.options[dropdown.selectedIndex];
+
+            // Update UI immediately
+            const avatar = container.querySelector('.assignee-avatar');
+            const nameSpan = container.querySelector('.assignee-name');
+
+            avatar.textContent = selectedValue ? selectedOption.text.charAt(0).toUpperCase() : 'U';
+            nameSpan.textContent = selectedValue ? selectedOption.text : 'Unassigned';
+
+            // Update task in memory
+            currentTask.assigneeId = selectedValue ? parseInt(selectedValue) : null;
+            currentTask.assigneeName = selectedValue ? selectedOption.text : null;
+
+            // Remove dropdown
+            dropdown.remove();
+        });
+
+        // Close dropdown when clicking outside
+        const clickHandler = (e) => {
+            if (!dropdown.contains(e.target) && !e.target.classList.contains('assignee-avatar')) {
+                dropdown.remove();
+                document.removeEventListener('click', clickHandler);
+            }
+        };
+        document.addEventListener('click', clickHandler);
+
+        // Focus the dropdown
+        dropdown.focus();
+
+    } catch (error) {
+        console.error('Error loading team members:', error);
+        showError('Failed to load team members');
+    }
+}
 
 function closeTaskDetails() {
-    let detailsPanel = document.getElementById('task-details-panel');
-    if (detailsPanel) {
-        detailsPanel.style.right = '-400px'; // Hide the panel
-    }
-
-    // Reset the main task board position
-    document.getElementById('main-task-board').classList.remove('main-shifted');
+    dom.taskDetailsPanel.style.right = '-450px';
+    dom.overlay.style.display = 'none';
 }
 
+// Task Actions
+async function saveTask(taskId) {
+    const updatedTask = {
+        title: document.getElementById('task-title').value,
+        assigneeId: currentTask.assigneeId,
+        description: document.getElementById('task-description').value,
+        priority: document.getElementById('task-priority').value,
+        dueDate: document.getElementById('task-due-date').value || null,
+        status: currentTask.status || 'To Do'
+    };
 
+    try {
+        const response = await fetch(`/api/tasks/${taskId}`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${localStorage.getItem('token')}`
+            },
+            body: JSON.stringify(updatedTask)
+        });
+
+        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+
+        await fetchTasks(currentProjectId);
+        closeTaskDetails();
+    } catch (error) {
+        console.error('Error updating task:', error);
+        showError('Failed to save changes. Please try again.');
+    }
+}
+
+async function deleteTask(taskId) {
+    if (!confirm('Are you sure you want to delete this task?')) return;
+
+    try {
+        const response = await fetch(`/api/tasks?id=${taskId}`, {
+            method: 'DELETE',
+            headers: {
+                'Authorization': `Bearer ${localStorage.getItem('token')}`
+            }
+        });
+
+        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+
+        await fetchTasks(currentProjectId);
+        closeTaskDetails();
+    } catch (error) {
+        console.error('Error deleting task:', error);
+        showError('Failed to delete task. Please try again.');
+    }
+}
+
+// Drag and Drop
 function allowDrop(event) {
     event.preventDefault();
 }
@@ -237,15 +747,13 @@ function drag(event) {
 async function drop(event, newColumnId) {
     event.preventDefault();
     const taskId = event.dataTransfer.getData('text');
-    const taskElement = document.querySelector(`[data-id='${taskId}']`);
 
-    if (taskElement) {
-        const columnContainer = document.getElementById(`task-list-${newColumnId}`);
-        if (columnContainer) {
-            columnContainer.appendChild(taskElement);
-        }
-
+    try {
         await updateTaskColumn(taskId, newColumnId);
+        await fetchTasks(currentProjectId);
+    } catch (error) {
+        console.error("Error moving task:", error);
+        showError('Failed to move task. Please try again.');
     }
 }
 
@@ -254,76 +762,77 @@ async function updateTaskColumn(taskId, newColumnId) {
         const response = await fetch(`/api/tasks/${taskId}/column`, {
             method: 'PUT',
             headers: {
-                'Content-Type': 'application/json'  // Ensure correct Content-Type
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${localStorage.getItem('token')}`
             },
-            body: JSON.stringify({ columnId: newColumnId }) // Ensure body is JSON
+            body: JSON.stringify({ columnId: newColumnId })
         });
 
-        if (!response.ok) {
-            const errorText = await response.text();
-            console.error("Failed to update task column:", errorText);
-        }
+        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
     } catch (error) {
         console.error("Error updating task column:", error);
+        throw error;
     }
 }
 
-
-
-function saveTask(taskId) {
-    const updatedTask = {
-        title: document.getElementById('task-title').value,
-        description: document.getElementById('task-description').value,
-        assigneeId: parseInt(document.getElementById('task-assignee').value),
-        status: document.getElementById('task-status').value,
-        priority: document.getElementById('task-priority').value,
-        dueDate: document.getElementById('task-due-date').value ? new Date(document.getElementById('task-due-date').value).toISOString() : null
-    };
-
-    fetch(`/api/tasks/${taskId}`, {
-        method: 'PUT',
-        headers: {
-            'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(updatedTask)
-    })
-        .then(response => {
-            if (response.ok) {
-                alert("Task updated successfully!");
-                closeTaskDetails(); // Close the details panel after update
-            } else {
-                return response.json().then(data => { throw new Error(data.message || "Failed to update task"); });
+// User Functions
+async function getUser(username) {
+    try {
+        const response = await fetch(`/api/users/${username}`, {
+            headers: {
+                'Authorization': `Bearer ${localStorage.getItem('token')}`
             }
-        })
-        .catch(error => {
-            console.error("Error updating task:", error);
-            alert("Error updating task: " + error.message);
         });
+
+        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+        return await response.json();
+    } catch (error) {
+        console.error('Error getting user:', error);
+        showError('Failed to load user data.');
+        return null;
+    }
 }
 
+async function getUserByID(id) {
+    try {
+        const response = await fetch(`/api/users/byID/${id}`, {
+            headers: {
+                'Authorization': `Bearer ${localStorage.getItem('token')}`
+            }
+        });
 
-
-function closeModal() {
-    document.getElementById('taskModal').style.display = 'none';
+        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+        return await response.json();
+    } catch (error) {
+        console.error('Error getting user:', error);
+        return null;
+    }
 }
 
-document.addEventListener('DOMContentLoaded', () => {
-    fetchProjectColumns();
-});
+// Utility Functions
+function updateTaskCounts() {
+    document.querySelectorAll('.column').forEach(column => {
+        const columnId = column.dataset.columnId;
+        const count = tasksData.filter(t => t.columnId == columnId).length;
+        column.querySelector('.task-count').textContent = count;
+    });
+}
 
 function formatDueDate(date) {
+    if (!date) return 'No due date';
+
     const now = new Date();
-    const tomorrow = new Date();
+    const tomorrow = new Date(now);
     tomorrow.setDate(now.getDate() + 1);
 
     const options = { day: '2-digit', month: 'short' };
     const formattedDate = date.toLocaleDateString('en-GB', options);
 
-    let color = 'grey';
+    let color = '#aaa';
     if (date < now) {
-        color = 'red';
+        color = '#ff4d4d';
     } else if (date.toDateString() === now.toDateString() || date.toDateString() === tomorrow.toDateString()) {
-        color = 'green';
+        color = '#4CAF50';
     }
     return `<span style="color: ${color};">${formattedDate}</span>`;
 }
@@ -346,60 +855,70 @@ function sortByDueDate(a, b) {
     return dateA - dateB;
 }
 
-// USERS -----------
+function showError(message) {
+    const errorElement = document.createElement('div');
+    errorElement.className = 'error-message';
+    errorElement.textContent = message;
 
-async function getUser(username) {
-    try {
-        const response = await fetch(`/api/users/${username}`, { method: 'GET' });
-
-        if (response.status === 404) {
-            console.warn(`User '${username}' not found!`);
-            return null; // Return null if user is not found
-        }
-
-        if (!response.ok) {
-            throw new Error(`Failed to fetch user data (Status: ${response.status})`);
-        }
-
-        const user = await response.json(); // Parse JSON response
-
-        if (!user || !user.username) {
-            console.warn("User data is missing or invalid.");
-            return null;
-        }
-
-        return user; // ✅ Return the user object
-
-    } catch (error) {
-        console.error('Error getting user:', error);
-        return null; // Return null in case of an error
+    const header = document.querySelector('.board-header');
+    if (header) {
+        header.appendChild(errorElement);
+        setTimeout(() => errorElement.remove(), 5000);
+    } else {
+        alert(message);
     }
 }
 
-async function getUserByID(id) {
-    try {
-        const response = await fetch(`/api/users/byID/${id}`, { method: 'GET' });
+function showCreateProjectModal() {
+    const modal = document.createElement('div');
+    modal.className = 'modal';
+    modal.innerHTML = `
+        <div class="modal-content">
+            <span class="close-modal">&times;</span>
+            <h2>Create New Project</h2>
+            <form id="create-project-form">
+                <div class="form-group">
+                    <label for="project-name">Project Name</label>
+                    <input type="text" id="project-name" required>
+                </div>
+                <div class="form-group">
+                    <label for="project-description">Description (Optional)</label>
+                    <textarea id="project-description"></textarea>
+                </div>
+                <button type="submit" class="btn btn-primary">Create Project</button>
+            </form>
+        </div>
+    `;
 
-        if (response.status === 404) {
-            console.warn(`User '${id}' not found!`);
-            return null; // Return null if user is not found
+    document.body.appendChild(modal);
+
+    // Close modal
+    modal.querySelector('.close-modal').addEventListener('click', () => {
+        modal.remove();
+    });
+
+    // Form submission
+    modal.querySelector('#create-project-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+
+        const name = document.getElementById('project-name').value.trim();
+        const description = document.getElementById('project-description').value.trim();
+        const username = localStorage.getItem('username');
+
+        try {
+            const user = await getUser(username);
+            if (!user) throw new Error("User not found");
+
+            const newProject = await createProject({
+                name: name,
+                description: description,
+                ownerId: user.id
+            });
+
+            modal.remove();
+            await loadInitialData(); // Refresh projects list
+        } catch (error) {
+            console.error('Error creating project:', error);
         }
-
-        if (!response.ok) {
-            throw new Error(`Failed to fetch user data (Status: ${response.status})`);
-        }
-
-        const user = await response.json(); // Parse JSON response
-
-        if (!user || !user.id) {
-            console.warn("User data is missing or invalid.");
-            return null;
-        }
-
-        return user; // ✅ Return the user object
-
-    } catch (error) {
-        console.error('Error getting user:', error);
-        return null; // Return null in case of an error
-    }
+    });
 }
