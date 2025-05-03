@@ -152,7 +152,7 @@ async function loadInitialData() {
     try {
         isLoading = true;
         projectsData = await fetchProjects();
-
+        console.log('projectsData', projectsData);
         if (projectsData && projectsData.length > 0) {
             currentProjectId = projectsData[0].id;
             renderProjects(projectsData);
@@ -304,14 +304,15 @@ function renderProjects(projects) {
         projectElement.addEventListener('click', async (e) => {
             // Don't switch projects if clicking on action buttons
             if (e.target.closest('.project-actions')) return;
-
-            const projectId = project.dataset.projectId;
+            console.log(projectElement.dataset.projectId);
+            const projectId = projectElement.dataset.projectId;
+            
             if (projectId === currentProjectId || isLoading) return;
 
             currentProjectId = projectId;
             document.querySelectorAll('.project').forEach(p =>
                 p.classList.remove('active'));
-            project.classList.add('active');
+            projectElement.classList.add('active');
 
             await loadProjectData(projectId);
         });
