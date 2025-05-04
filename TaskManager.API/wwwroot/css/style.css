@@ -18,7 +18,7 @@
     --modal-text: #ECEFF4;
 
     /* Layout Variables */
-    --sidebar-width: 280px;
+    --sidebar-width: 15vw;
     --sidebar-collapsed-width: 70px;
     --header-height: 60px;
     --transition-speed: 0.3s;
@@ -80,13 +80,13 @@ body {
     width: var(--sidebar-width);
     height: 100vh;
     background-color: var(--sidebar-bg);
-    padding: 25px 20px;
+    padding: 10px 7.5px;
     position: fixed;
     left: 0;
     top: 0;
     display: flex;
     flex-direction: column;
-    gap: 20px;
+    gap: 10px;
     border-right: 1px solid var(--border-color);
     z-index: 1000;
     transition: transform var(--transition-speed);
@@ -167,17 +167,6 @@ body {
     display: flex;
     flex-direction: column;
     gap: 12px;
-}
-
-.project {
-    background: var(--card-bg);
-    padding: 14px 16px;
-    border-radius: 8px;
-    font-size: 0.95rem;
-    font-weight: 600;
-    cursor: pointer;
-    transition: all 0.25s ease;
-    border-left: 4px solid transparent;
 }
 
 .project:hover {
@@ -726,7 +715,7 @@ body {
 .projects-list {
     display: flex;
     flex-direction: column;
-    gap: 10px;
+    gap: 6px;
 }
 
 /* Project Item */
@@ -737,20 +726,24 @@ body {
     transition: all 0.25s ease;
     border-left: 4px solid transparent;
     overflow: hidden;
+
+    padding: 4px 5px;
+    font-size: 0.95rem;
+    font-weight: 400;
+    border-left: 4px solid transparent;
 }
 
 .project-content {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 14px 16px;
+    padding: 10px 12px;
 }
 
 .project-name {
     font-size: 0.95rem;
     font-weight: 600;
     flex-grow: 1;
-    
 }
 
 .project-actions {
@@ -867,4 +860,10 @@ body {
     display: flex;
     flex-direction: column;
     gap: 20px;
+}
+
+.editable[contenteditable="true"] {
+    outline: none;
+    border-bottom: 1px dashed #ccc;
+    cursor: text;
 }

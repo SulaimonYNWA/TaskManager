@@ -19,11 +19,23 @@ const dom = {
 };
 
 // Initialize the app
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
     checkAuth();
     initEventListeners();
     loadInitialData();
     createOverlay();
+    
+    
+   username = localStorage.getItem('username');
+    if (username) {
+        const user = await getUser(username); // assume getUser fetches from server or DB
+        if (user) {
+            localStorage.setItem('user', JSON.stringify(user)); // ✅ store as JSON string
+            console.log(user);
+        } else {
+            console.error('User not found');
+        }
+    }
 });
 
 // Authentication
@@ -153,13 +165,15 @@ async function loadInitialData() {
         isLoading = true;
         projectsData = await fetchProjects();
         console.log('projectsData', projectsData);
+        
         if (projectsData && projectsData.length > 0) {
             currentProjectId = projectsData[0].id;
             renderProjects(projectsData);
             await loadProjectData(currentProjectId);
         } else {
-            dom.projectsList.innerHTML = '<div class="no-projects">No projects available</div>';
+            renderProjects(projectsData);
         }
+        renderProjectName(projectsData[0]);
     } catch (error) {
         console.error('Initial data loading error:', error);
         showError("Failed to load initial data. Please refresh the page.");
@@ -244,8 +258,10 @@ async function deleteProject(projectId) {
         if (!response.ok) {
             const errorData = await response.json().catch(() => null);
             throw new Error(errorData?.message || `HTTP error! status: ${response.status}`);
+        }else {
+            alert("Project deleted successfully.");
+            await loadProjects(); // reload project list
         }
-
         return true;
     } catch (error) {
         console.error('Error deleting project:', error);
@@ -259,6 +275,7 @@ async function loadProjectData(projectId) {
         await Promise.all([
             fetchProjectColumns(projectId),
             fetchTasks(projectId)
+            
         ]);
     } catch (error) {
         console.error('Error loading project data:', error);
@@ -271,70 +288,96 @@ function renderProjects(projects) {
     const projectsContainer = document.createElement('div');
     projectsContainer.className = 'projects-container';
 
-    // Add Create Project button
     const createProjectBtn = document.createElement('button');
     createProjectBtn.className = 'create-project-btn';
     createProjectBtn.innerHTML = '<i class="fas fa-plus"></i> Create Project';
     createProjectBtn.addEventListener('click', showCreateProjectModal);
     projectsContainer.appendChild(createProjectBtn);
 
-    // Add projects list
     const projectsList = document.createElement('div');
     projectsList.className = 'projects-list';
 
+    const currentUser = JSON.parse(localStorage.getItem('user')); // Get current user info
+
     projects.forEach(project => {
         const projectElement = document.createElement('div');
-        projectElement.className = `project ${project.id === currentProjectId ? 'active' : ''}`;
+        projectElement.className = `project ${project.id == currentProjectId ? 'active' : ''}`;
         projectElement.dataset.projectId = project.id;
+
+        const isOwner = currentUser && project.ownerId == currentUser.id;
 
         projectElement.innerHTML = `
             <div class="project-content">
                 <span class="project-name">${project.name}</span>
-                <div class="project-actions">
-                    <button class="edit-project-btn" data-project-id="${project.id}">
-                        <i class="fas fa-pencil-alt"></i>
-                    </button>
-                    <button class="delete-project-btn" data-project-id="${project.id}">
-                        <i class="fas fa-trash"></i>
-                    </button>
-                </div>
+               
             </div>
         `;
 
         projectElement.addEventListener('click', async (e) => {
-            // Don't switch projects if clicking on action buttons
             if (e.target.closest('.project-actions')) return;
-            console.log(projectElement.dataset.projectId);
             const projectId = projectElement.dataset.projectId;
-            
-            if (projectId === currentProjectId || isLoading) return;
+            if (projectId == currentProjectId || isLoading) return;
 
             currentProjectId = projectId;
-            document.querySelectorAll('.project').forEach(p =>
-                p.classList.remove('active'));
+            document.querySelectorAll('.project').forEach(p => p.classList.remove('active'));
             projectElement.classList.add('active');
 
             await loadProjectData(projectId);
+            renderProjectName(project);
         });
 
-        // Add edit/delete event listeners
-        projectElement.querySelector('.edit-project-btn').addEventListener('click', (e) => {
-            e.stopPropagation();
-            editProject(project.id);
-        });
-
-        projectElement.querySelector('.delete-project-btn').addEventListener('click', (e) => {
-            e.stopPropagation();
-            deleteProject(project.id);
-        });
+        // if (isOwner) {
+        //     projectElement.querySelector('.edit-project-btn').addEventListener('click', (e) => {
+        //         e.stopPropagation();
+        //         editProject(project);
+        //     });
+        //
+        //     projectElement.querySelector('.delete-project-btn').addEventListener('click', (e) => {
+        //         e.stopPropagation();
+        //         deleteProject(project.id);
+        //     });
+        // }
 
         projectsList.appendChild(projectElement);
     });
 
     projectsContainer.appendChild(projectsList);
     dom.projectsList.replaceWith(projectsContainer);
-    dom.projectsList = projectsContainer; // Update reference
+    dom.projectsList = projectsContainer;
 }
+
+
+
+async function editProject(project) {
+    const newName = prompt("Enter new project name:", project.name);
+    if (!newName || newName.trim() === project.name.trim()) return;
+
+    try {
+        const token = localStorage.getItem('token');
+        const response = await fetch(`/api/projects/${project.id}`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({
+                ...project,
+                name: newName.trim()
+            })
+        });
+
+        if (response.ok) {
+            alert("Project updated.");
+            await loadProjects(); // reload project list
+        } else {
+            const data = await response.json();
+            alert("Failed to update project: " + (data.message || response.statusText));
+        }
+    } catch (err) {
+        console.error("Error updating project:", err);
+    }
+}
+
 
 // Add these new functions
 function showCreateProjectModal() {
@@ -342,17 +385,6 @@ function showCreateProjectModal() {
     console.log("Create project modal shown");
 }
 
-function editProject(projectId) {
-    // Implement edit functionality
-    console.log("Editing project:", projectId);
-}
-
-function deleteProject(projectId) {
-    if (confirm("Are you sure you want to delete this project?")) {
-        console.log("Deleting project:", projectId);
-        // Add your delete API call here
-    }
-}
 
 // Column Functions
 async function fetchProjectColumns() {
@@ -368,6 +400,7 @@ async function fetchProjectColumns() {
         showError("Error loading columns. Please try again.");
     }
 }
+
 
 function renderColumns(columns) {
     dom.taskBoard.innerHTML = '';
@@ -879,8 +912,8 @@ function showCreateProjectModal() {
             <h2>Create New Project</h2>
             <form id="create-project-form">
                 <div class="form-group">
-                    <label for="project-name">Project Name</label>
-                    <input type="text" id="project-name" required>
+                    <label for="new-project-name">Project Name</label>
+                    <input type="text" id="new-project-name" required>
                 </div>
                 <div class="form-group">
                     <label for="project-description">Description (Optional)</label>
@@ -902,7 +935,7 @@ function showCreateProjectModal() {
     modal.querySelector('#create-project-form').addEventListener('submit', async (e) => {
         e.preventDefault();
 
-        const name = document.getElementById('project-name').value.trim();
+        const name = document.getElementById('new-project-name').value.trim();
         const description = document.getElementById('project-description').value.trim();
         const username = localStorage.getItem('username');
 
@@ -923,3 +956,71 @@ function showCreateProjectModal() {
         }
     });
 }
+
+// render project name:
+function renderProjectName(project) {
+    const projectNameElement = document.getElementById('project-name');
+    const currentUser = JSON.parse(localStorage.getItem('user'));
+
+    projectNameElement.textContent = project.name;
+
+    // Clear any previous contenteditable and event listeners
+    projectNameElement.removeAttribute('contenteditable');
+    projectNameElement.replaceWith(projectNameElement.cloneNode(true));
+    const newProjectNameElement = document.getElementById('project-name');
+
+    if (currentUser && project.ownerId === currentUser.id) {
+        newProjectNameElement.setAttribute('contenteditable', 'true');
+        newProjectNameElement.classList.add('editable');
+
+        let timeout;
+        newProjectNameElement.addEventListener('input', () => {
+            newProjectNameElement.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') {
+                    e.preventDefault(); // Prevent newline
+                    newProjectNameElement.blur(); // Trigger update early
+                }
+            });
+            clearTimeout(timeout);
+            timeout = setTimeout(async () => {
+                const newName = newProjectNameElement.textContent.trim();
+
+                if (newName && newName !== project.name) {
+                    const token = localStorage.getItem('token');
+                    const response = await fetch(`/api/projects/${project.id}`, {
+                        method: 'PUT',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${token}`
+                        },
+                        body: JSON.stringify({
+                            ...project,
+                            name: newName
+                        })
+                    });
+
+                    if (response.ok) {
+                        project.name = newName;
+                        updateProjectNameInSidebar(project.id, newName);
+                        console.log("Project name updated.");
+                    } else {
+                        console.error("Failed to update project name.");
+                        newProjectNameElement.textContent = project.name; // revert on error
+                    }
+                }
+            }, 2000); // update after 2 seconds of inactivity
+        });
+    } else {
+        newProjectNameElement.classList.remove('editable');
+    }
+}
+
+function updateProjectNameInSidebar(projectId, newName) {
+    const sidebarProject = document.querySelector(`.project[data-project-id="${projectId}"] .project-name`);
+    if (sidebarProject) {
+        sidebarProject.textContent = newName;
+    }
+}
+
+
+
