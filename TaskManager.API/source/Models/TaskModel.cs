@@ -12,7 +12,7 @@ namespace TaskManager.API.Models
         [Required]
         public string Title { get; set; }
 
-        public string Description { get; set; }
+        public string? Description { get; set; }
 
         [Required]
         [Column("project_id")]
