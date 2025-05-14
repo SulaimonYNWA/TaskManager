@@ -43,5 +43,6 @@ git push origin feature/your_branch_name
 
 
 UI as of 14/05/2025:
-<img width="1496" alt="image" src="https://github.com/user-attachments/assets/97210efc-d142-481f-9b79-b50f13ebceeb" />
+<img width="1487" alt="image" src="https://github.com/user-attachments/assets/071eee90-ddd4-48a0-846b-8958db3a6989" />
+
 
