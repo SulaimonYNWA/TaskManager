@@ -15,6 +15,7 @@ const dom = {
     taskBoard: document.getElementById('task-board'),
     taskDetailsPanel: document.getElementById('task-details-panel'),
     addTaskMainBtn: document.getElementById('add-task-main-btn'),
+    task: document.getElementsByClassName('task'),
     overlay: null
 };
 
@@ -24,7 +25,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     initEventListeners();
     loadInitialData();
     createOverlay();
-    
     
    username = localStorage.getItem('username');
     if (username) {
@@ -63,15 +63,100 @@ function createUserAvatar(username) {
     const avatar = document.createElement('div');
     avatar.className = 'user-avatar';
     avatar.textContent = initials;
-    avatar.dataset.username = username; // Store username in dataset
+    avatar.dataset.username = username;
 
-    // Add click event to show full name
-    avatar.addEventListener('click', function() {
-        showUsernameTooltip(this);
+    avatar.addEventListener('click', () => {
+            openProfileModal(username);
     });
 
     dom.logoutBtn.insertAdjacentElement('beforebegin', avatar);
 }
+
+async function openProfileModal(username) {
+    const modal = document.getElementById('profile-modal');
+    const avatarDisplay = modal.querySelector('.profile-avatar');
+    const nameInput = modal.querySelector('#profile-name-input');
+    const emailField = modal.querySelector('#profile-email');
+    const createdAtField = modal.querySelector('#profile-created-at');
+
+    try {
+        const response = await fetch(`/api/Users/${username}`,{})
+
+        if (!response.ok) throw new Error('Failed to fetch user data');
+
+        const userData = await response.json();
+
+        // Update modal with user data
+        const initials = userData.username.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase();
+        avatarDisplay.textContent = initials;
+        nameInput.value = userData.username;
+        emailField.textContent = userData.email;
+        createdAtField.textContent = new Date(userData.createdAt).toLocaleString();
+
+        const token = localStorage.getItem('token');
+        const resp = await fetch('/api/users/me/invitations', {
+            headers: { Authorization: `Bearer ${token}` }
+        });
+        console.log(resp);
+        const invitations = await resp.json();
+
+        invitations.forEach(inv => {
+            const container = document.createElement('div');
+            container.innerHTML = `
+        <p><strong>${inv.project_name}</strong> from ${inv.owner_name}</p>
+        <button onclick="respondToInvite(${inv.id}, 'accepted')">Accept</button>
+        <button onclick="respondToInvite(${inv.id}, 'declined')">Decline</button>
+    `;
+            document.getElementById('invitation-section').appendChild(container);
+        });
+
+        
+        modal.style.display = 'block';
+    } catch (error) {
+        console.error('Error loading user profile:', error);
+        alert('Failed to load user profile');
+    }
+    
+}
+
+async function respondToInvite(inviteId, action) {
+    const token = localStorage.getItem('token');
+    const res = await fetch(`/api/users/invitations/${inviteId}/respond`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ action })
+    });
+
+    if (res.ok) {
+        // Remove invitation from UI
+        const row = document.querySelector(`[data-invite-id="${inviteId}"]`);
+        if (row) row.remove();
+    } else {
+        const error = await res.text();
+        alert("Failed to respond to invitation: " + error);
+    }
+}
+
+
+function saveProfileChanges() {
+    const nameInput = document.getElementById('profile-name-input');
+    const newName = nameInput.value.trim();
+
+    if (!newName) return;
+
+    const user = JSON.parse(localStorage.getItem('user'));
+    user.username = newName;
+    localStorage.setItem('user', JSON.stringify(user));
+
+    // Optionally update UI avatar
+    document.querySelector('.user-avatar').textContent = newName.slice(0, 2).toUpperCase();
+
+    document.getElementById('profile-modal').style.display = 'none';
+}
+
 
 function showUsernameTooltip(avatarElement) {
     // Remove any existing tooltip first
@@ -140,8 +225,6 @@ function createOverlay() {
 }
 
 function initEventListeners() {
-    
-
     // Main Add Task Button
     dom.addTaskMainBtn.addEventListener('click', () => {
         if (!currentProjectId) {
@@ -164,16 +247,24 @@ async function loadInitialData() {
     try {
         isLoading = true;
         projectsData = await fetchProjects();
-        console.log('projectsData', projectsData);
-        
+        // console.log('projectsData', projectsData);
+        projectModule(projectsData[0]);
         if (projectsData && projectsData.length > 0) {
             currentProjectId = projectsData[0].id;
+
+            const projectNameElement = document.getElementById('project-name');
+
+            projectNameElement.textContent = projectsData[0].name;
+            
             renderProjects(projectsData);
             await loadProjectData(currentProjectId);
+            
         } else {
             renderProjects(projectsData);
         }
-        renderProjectName(projectsData[0]);
+        // renderProjectName(projectsData[0]);
+        
+        // projectModule(projectsData[0]); 
     } catch (error) {
         console.error('Initial data loading error:', error);
         showError("Failed to load initial data. Please refresh the page.");
@@ -275,7 +366,6 @@ async function loadProjectData(projectId) {
         await Promise.all([
             fetchProjectColumns(projectId),
             fetchTasks(projectId)
-            
         ]);
     } catch (error) {
         console.error('Error loading project data:', error);
@@ -325,19 +415,6 @@ function renderProjects(projects) {
             await loadProjectData(projectId);
             renderProjectName(project);
         });
-
-        // if (isOwner) {
-        //     projectElement.querySelector('.edit-project-btn').addEventListener('click', (e) => {
-        //         e.stopPropagation();
-        //         editProject(project);
-        //     });
-        //
-        //     projectElement.querySelector('.delete-project-btn').addEventListener('click', (e) => {
-        //         e.stopPropagation();
-        //         deleteProject(project.id);
-        //     });
-        // }
-
         projectsList.appendChild(projectElement);
     });
 
@@ -569,14 +646,26 @@ function renderTask(task) {
     const dueDateDisplay = task.dueDate ? formatDueDate(new Date(task.dueDate)) : 'No due date';
 
     taskElement.innerHTML = `
-        <strong>${task.title}</strong>
+    <div class="task-card" style="opacity: ${task.completed ? '0.2' : '1'}">
+        <strong>
+      ${task.completed
+        ? `<img width="16px" src="https://cdn-icons-png.flaticon.com/512/845/845646.png" alt="Tick" class="tick-icon" />`
+        : ''
+    } 
+      ${task.title}
+    </strong>
         <div class="task-meta">
+            <span class="progress progress-${task.progress.toLowerCase()}">${task.progress}</span>
             <span class="priority priority-${task.priority.toLowerCase()}">${task.priority}</span>
+            <span class="est-work est-work-${task.estimatedWork.toLowerCase()}">${task.estimatedWork}</span>
+         </div>
+         <div class="task-meta2">
+            ${task.assigneeName ? ` <span id="assignee-under-task">${task.assigneeName.toLowerCase()}</span>` : ''}
             <span class="due-date">${dueDateDisplay}</span>
-            ${task.assigneeName ? `<span class="assignee-badge">${task.assigneeName.charAt(0).toUpperCase()}</span>` : ''}
+        </div>
         </div>
     `;
-
+   
     const columnContainer = document.getElementById(`task-list-${task.columnId}`);
     if (columnContainer) columnContainer.appendChild(taskElement);
 }
@@ -585,26 +674,26 @@ function renderTask(task) {
 function showTaskDetails(task) {
     const detailsPanel = dom.taskDetailsPanel;
     currentTask = task;
-
     detailsPanel.innerHTML = `
+       <div class="task-header">
+        <button id="complete-btn" class="btn btn-complete" onclick="toggleTaskCompletion(${task.id})">
+            ${task.completed ? '↩️ Mark Incomplete' : '<img width="22px" src="https://cdn-icons-png.flaticon.com/512/845/845646.png" alt="Tick" class="tick-icon" /> Complete'}
+        </button>
+
         <span class="close-details" onclick="closeTaskDetails()">&times;</span>
+    </div>
         <h2><input type="text" id="task-title" value="${task.title}" class="styled-input" /></h2>
-        
+       
         <div class="detail-section">
             <h3>Assignee</h3>
             <div class="assignee-container">
                 <div class="assignee-avatar" onclick="toggleAssigneeDropdown(${task.projectId}, ${task.assigneeId || 0})">
                     ${task.assigneeName ? task.assigneeName.charAt(0).toUpperCase() : 'U'}
                 </div>
-                <span class="assignee-name">${task.assigneeName || 'Unassigned'}</span>
+                <div class="assignee-name">${task.assigneeName || 'Unassigned'}</div>
             </div>
         </div>
-
-        <div class="detail-section">
-            <h3>Description</h3>
-            <textarea id="task-description" class="styled-textarea">${task.description || ''}</textarea>
-        </div>
-
+        
         <div class="detail-section">
             <h3>Details</h3>
             <div class="form-row">
@@ -615,13 +704,34 @@ function showTaskDetails(task) {
                         <option value="Medium" ${task.priority === "Medium" ? "selected" : ""}>Medium</option>
                         <option value="High" ${task.priority === "High" ? "selected" : ""}>High</option>
                     </select>
+                    <br>
+                    <label>Progress</label>
+                    <select id="task-progress" class="styled-input">
+                        <option value="Not Started" ${task.progress === "Not Started" ? "selected" : ""}>Not Started</option>
+                        <option value="Off Track" ${task.progress === "Off Track" ? "selected" : ""}>Off Track</option>
+                        <option value="On Track" ${task.progress === "On Track" ? "selected" : ""}>On Track</option>
+                        <option value="Achieved" ${task.progress === "Achieved" ? "selected" : ""}>Achieved</option>
+                    </select>
                 </div>
                 <div class="form-group">
                     <label>Due Date</label>
                     <input type="date" id="task-due-date" class="styled-input" 
                            value="${task.dueDate ? task.dueDate.split('T')[0] : ''}">
+                           <label>Priority</label>
+                    <select id="task-est" class="styled-select">
+                        <option value="Short (1-4 hours)" ${task.estimatedWork === "Short (1-4 hours)" ? "selected" : ""}>Short (1-4 hours)</option>
+                        <option value="Medium (4+ hours)" ${task.estimatedWork === "Medium (4+ hours)" ? "selected" : ""}>Medium (4+ hours)</option>
+                        <option value="Large (1-2 days)" ${task.estimatedWork === "Large (1-2 days)" ? "selected" : ""}>Large (1-2 days)</option>
+                        <option value="X-Large (3-4 days)" ${task.estimatedWork === "X-Large (3-4 days)" ? "selected" : ""}>X-Large (3-4 days)</option>
+   
+                    </select>
                 </div>
             </div>
+        </div>
+
+        <div class="detail-section">
+            <h3>Description</h3>
+            <textarea id="task-description" class="styled-textarea">${task.description || ''}</textarea>
         </div>
 
         <div class="task-actions">
@@ -637,6 +747,19 @@ function showTaskDetails(task) {
     detailsPanel.style.right = '0';
     dom.overlay.style.display = 'block';
 }
+
+function toggleTaskCompletion(taskId) {
+    // Toggle the completed value
+    currentTask.completed = !currentTask.completed;
+
+    // Update the button text
+    const button = document.getElementById('complete-btn');
+    button.textContent = currentTask.completed ? '↩️ Mark Incomplete' : '✅ Complete';
+
+    // Optionally: update the backend or visually reflect status
+    completeTask(taskId, currentTask.completed); // assuming it sends the 'completed' state
+}
+
 
 async function toggleAssigneeDropdown(projectId, currentAssigneeId) {
     try {
@@ -664,7 +787,7 @@ async function toggleAssigneeDropdown(projectId, currentAssigneeId) {
         // Add user options
         users.forEach(user => {
             const option = document.createElement('option');
-            option.value = user.id;
+            option.value = user.userId;
             option.textContent = user.username;
             if (user.id === currentAssigneeId) option.selected = true;
             dropdown.appendChild(option);
@@ -713,7 +836,7 @@ async function toggleAssigneeDropdown(projectId, currentAssigneeId) {
 }
 
 function closeTaskDetails() {
-    dom.taskDetailsPanel.style.right = '-450px';
+    dom.taskDetailsPanel.style.right = '-750px';
     dom.overlay.style.display = 'none';
 }
 
@@ -724,10 +847,11 @@ async function saveTask(taskId) {
         assigneeId: currentTask.assigneeId,
         description: document.getElementById('task-description').value,
         priority: document.getElementById('task-priority').value,
+        progress: document.getElementById('task-progress').value,
+        estimatedWork: document.getElementById('task-est').value,
         dueDate: document.getElementById('task-due-date').value || null,
-        status: currentTask.status || 'To Do'
+        status: currentTask.status || 'To Do',
     };
-
     try {
         const response = await fetch(`/api/tasks/${taskId}`, {
             method: 'PUT',
@@ -748,6 +872,29 @@ async function saveTask(taskId) {
     }
 }
 
+async function completeTask(taskId, completed) {
+    const updatedTask = {
+        completed: completed,
+    };
+    try {
+        const response = await fetch(`/api/tasks/${taskId}`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${localStorage.getItem('token')}`
+            },
+            body: JSON.stringify(updatedTask)
+        });
+
+        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+
+        await fetchTasks(currentProjectId);
+        closeTaskDetails();
+    } catch (error) {
+        console.error('Error completing task:', error);
+        showError('Failed to save changes. Please try again.');
+    }
+}
 async function deleteTask(taskId) {
     if (!confirm('Are you sure you want to delete this task?')) return;
 
@@ -907,7 +1054,7 @@ function showCreateProjectModal() {
     const modal = document.createElement('div');
     modal.className = 'modal';
     modal.innerHTML = `
-        <div class="modal-content">
+        <div class="project-modal-content">
             <span class="close-modal">&times;</span>
             <h2>Create New Project</h2>
             <form id="create-project-form">
@@ -961,7 +1108,8 @@ function showCreateProjectModal() {
 function renderProjectName(project) {
     const projectNameElement = document.getElementById('project-name');
     const currentUser = JSON.parse(localStorage.getItem('user'));
-
+    
+    projectModule(project);
     projectNameElement.textContent = project.name;
 
     // Clear any previous contenteditable and event listeners
@@ -1022,5 +1170,143 @@ function updateProjectNameInSidebar(projectId, newName) {
     }
 }
 
+let projectModuleInitialized = false;
+
+function projectModule(project) {
+    const currentUser = JSON.parse(localStorage.getItem('user'));
+    
+    // Attach event listeners only once
+    if (!projectModuleInitialized) {
+        document.getElementById('project-options-btn').addEventListener('click', () => {
+            document.getElementById('project-options-modal').style.display = 'block';
+            document.getElementById('project-modal-content').style.display = 'block';
+            // THIS will now call the correct fetch for every project
+            fetchAndShowProjectOptions(currentProject);
+        });
+
+        document.querySelector('.close-btn').addEventListener('click', () => {
+            document.getElementById('project-options-modal').style.display = 'none';
+            document.getElementById('project-modal-content').style.display = 'none';
+        });
+
+        let selectedUsername = "";
+
+        document.getElementById('new-collaborator-username').addEventListener('input', async (e) => {
+            const query = e.target.value.trim();
+            const list = document.getElementById('collaborator-suggestions');
+            list.innerHTML = '';
+            selectedUsername = ""
+
+            if (query.length < 2) return;
+
+            const res = await fetch(`/api/users/search?q=${encodeURIComponent(query)}`)
+
+            if (res.ok) {
+                const users = await res.json();
+                users.forEach(user => {
+                    const div = document.createElement('div');
+                    div.textContent = `${user.username} (${user.email})`;
+                    div.className = 'suggestion-item';
+                    div.onclick = () => {
+                        document.getElementById('new-collaborator-username').value = user.username;
+                        selectedUserId = user.id;
+                        selectedUsername = user.username;
+                        list.innerHTML = '';
+                    };
+                    list.appendChild(div);
+                });
+            }
+        });
+
+        document.getElementById('add-collaborator-btn').addEventListener('click', async () => {
+            if (!selectedUserId) {
+                alert("Please select a valid user from suggestions.");
+                return;
+            }
+    console.log(selectedUsername);
+            const token = localStorage.getItem('token');
+            const res = await fetch(`/api/projects/${currentProject.id}/invite`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify(selectedUsername)
+            });
+
+            if (res.ok) {
+                alert('Invitation sent!');
+                document.getElementById('new-collaborator-username').value = '';
+                selectedUserId = null;
+            } else {
+                const error = await res.text();
+                alert('Failed to send invitation: ' + error);
+            }
+        });
 
 
+        projectModuleInitialized = true;
+    }
+
+    // Always update current project info when switching
+    currentProject = project;
+}
+
+    // Always update the fetch function to get current project info
+    async function fetchAndShowProjectOptions(currentProject) {
+        const token = localStorage.getItem('token');
+        const currentUser = JSON.parse(localStorage.getItem('user'));
+        const response = await fetch(`/api/users/project/${currentProject.id}`);
+
+        if (!response.ok) return;
+
+        const data = await response.json();
+        // console.log("users: ",data);
+        if (!data || data.length === 0) {
+            showError('No team members available');
+            return;
+        }
+
+        const list = document.getElementById('collaborators-list');
+        list.innerHTML = '';
+
+        data.forEach(user => {
+            console.log("USER:",user);
+            if (user.userRole === "Owner") {
+                // console.log("ownerID: ",user.userId);
+                document.getElementById('owner-name').textContent = user.username;
+            }
+            if (user.projectId === currentProject.id) {
+                const li = document.createElement('li');
+                li.textContent = user.username;
+
+                if (currentUser.id === currentProject.ownerId && user.userId !== currentProject.ownerId) {
+                    const removeBtn = document.createElement('button');
+                    removeBtn.innerHTML = '<i class="fas fa-trash"></i>';
+                    removeBtn.title = 'Remove collaborator';
+                    removeBtn.className = 'remove-collab-btn';
+                    removeBtn.onclick = () => removeCollaborator(currentProject, user.id);
+                    li.appendChild(removeBtn);
+                }
+
+                list.appendChild(li);
+            }
+        });
+    }
+
+    async function removeCollaborator(currentProject, userId) {
+        const confirmed = confirm('Remove this collaborator?');
+        if (!confirmed) return;
+
+        const token = localStorage.getItem('token');
+        await fetch(`/api/projects/${currentProject.id}/members/${userId}`, {
+            method: 'DELETE',
+            headers: {
+                'Authorization': `Bearer ${token}`
+            }
+        });
+
+        await fetchAndShowProjectOptions(currentProject);
+    }
+
+    
