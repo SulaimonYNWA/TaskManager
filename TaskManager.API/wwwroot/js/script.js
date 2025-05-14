@@ -1285,7 +1285,7 @@ function projectModule(project) {
                     removeBtn.innerHTML = '<i class="fas fa-trash"></i>';
                     removeBtn.title = 'Remove collaborator';
                     removeBtn.className = 'remove-collab-btn';
-                    removeBtn.onclick = () => removeCollaborator(currentProject, user.id);
+                    removeBtn.onclick = () => removeCollaborator(currentProject, user.userId);
                     li.appendChild(removeBtn);
                 }
 

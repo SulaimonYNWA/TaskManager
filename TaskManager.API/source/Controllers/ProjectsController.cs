@@ -2,6 +2,8 @@ using Microsoft.AspNetCore.Mvc;
 using Dapper;
 using MySql.Data.MySqlClient;
 using System.Collections.Generic;
+using System.IdentityModel.Tokens.Jwt;
+using System.Security.Claims;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
 using TaskManager.API.Models;
@@ -191,5 +193,36 @@ public class ProjectsController : ControllerBase
 
         return Ok("Invitation sent");
     }
+    
+    [Authorize]
+    [HttpDelete("{projectId}/members/{userId}")]
+    public async Task<IActionResult> RemoveCollaborator(int projectId, int userId)
+    {
+        var currentUserId = GetCurrentUserId();
 
+        using var connection = new MySqlConnection(_connectionString);
+
+        // Optional: Check if current user is owner of the project
+        var isOwner = await connection.ExecuteScalarAsync<bool>(
+            "SELECT COUNT(*) FROM projects WHERE id = @ProjectId AND owner_id = @OwnerId",
+            new { ProjectId = projectId, OwnerId = currentUserId });
+
+        if (!isOwner)
+            return Forbid("Only the project owner can remove collaborators.");
+
+        var deleted = await connection.ExecuteAsync(
+            "DELETE FROM project_members WHERE project_id = @ProjectId AND user_id = @UserId",
+            new { ProjectId = projectId, UserId = userId });
+
+        if (deleted == 0)
+            return NotFound("Collaborator not found in project.");
+
+        return Ok("Collaborator removed");
+    }
+
+    private int GetCurrentUserId()
+    {
+        var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier) ?? User.FindFirst(JwtRegisteredClaimNames.Sub);
+        return userIdClaim != null ? int.Parse(userIdClaim.Value) : throw new UnauthorizedAccessException("User ID not found in token.");
+    }
 }
