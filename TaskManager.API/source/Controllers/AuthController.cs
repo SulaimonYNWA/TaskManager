@@ -9,6 +9,7 @@ using Microsoft.IdentityModel.Tokens;
 using System.IdentityModel.Tokens.Jwt;
 using System.Text;
 using System;
+using System.Security.Claims;
 
 [Route("api/[controller]")]
 [ApiController]
@@ -88,14 +89,29 @@ public class AuthController : ControllerBase
     /// </summary>
     private string GenerateJwtToken(User user)
     {
+        var claims = new List<Claim>
+        {
+            new Claim(JwtRegisteredClaimNames.Sub, user.Id.ToString()),
+            new Claim(JwtRegisteredClaimNames.Email, user.Email),
+            new Claim("username", user.Username)
+        };
+
+        // var token = new JwtSecurityToken(
+        //     issuer: "your-app",
+        //     audience: "your-app",
+        //     claims: claims,
+        //     expires: DateTime.UtcNow.AddDays(7),
+        //     signingCredentials: creds
+        // );
+
         var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_configuration["Jwt:Key"]));
         var credentials = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
 
         var token = new JwtSecurityToken(
             issuer: _configuration["Jwt:Issuer"],
             audience: _configuration["Jwt:Audience"],
-            claims: null,
-            expires: DateTime.UtcNow.AddHours(2),
+            claims: claims,
+            expires: DateTime.UtcNow.AddHours(12),
             signingCredentials: credentials);
 
         return new JwtSecurityTokenHandler().WriteToken(token);
