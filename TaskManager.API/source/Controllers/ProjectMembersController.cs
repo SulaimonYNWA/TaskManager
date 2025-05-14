@@ -29,4 +29,16 @@ public class ProjectMembersController : ControllerBase
 
         return BadRequest("Failed to add user to project");
     }
+    
+    [HttpGet]
+    public async Task<ActionResult<IEnumerable<ProjectMember>>> GetAllProjectMembers()
+    {
+        using var connection = new MySqlConnection(_connectionString);
+        var sql = @"
+            SELECT * FROM project_members;";
+        
+        var projectMembers = await connection.QueryAsync<ProjectMember>(sql);
+
+        return Ok(projectMembers);
+    }
 }
