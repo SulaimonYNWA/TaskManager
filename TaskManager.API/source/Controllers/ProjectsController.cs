@@ -98,6 +98,98 @@ public class ProjectsController : ControllerBase
             return StatusCode(500, "An error occurred while creating the project.");
         }
     }
+    
+    [Authorize]
+    [HttpDelete("{id}")]
+    public async Task<IActionResult> DeleteProject(int id)
+    {
+        using var connection = new MySqlConnection(_connectionString);
+        await connection.OpenAsync();
 
+        using var transaction = await connection.BeginTransactionAsync();
+
+        try
+        {
+            // Optionally delete related project members or tasks if ON DELETE CASCADE is not set
+            var deleteMembersSql = "DELETE FROM project_members WHERE project_id = @ProjectId;";
+            await connection.ExecuteAsync(deleteMembersSql, new { ProjectId = id }, transaction);
+
+            var deleteTasksSql = "DELETE FROM tasks WHERE project_id = @ProjectId;";
+            await connection.ExecuteAsync(deleteTasksSql, new { ProjectId = id }, transaction);
+
+            var deleteProjectSql = "DELETE FROM projects WHERE id = @ProjectId;";
+            var rowsAffected = await connection.ExecuteAsync(deleteProjectSql, new { ProjectId = id }, transaction);
+
+            if (rowsAffected > 0)
+            {
+                await transaction.CommitAsync();
+                return Ok(new { message = "Project deleted successfully." });
+            }
+
+            await transaction.RollbackAsync();
+            return NotFound(new { message = "Project not found." });
+        }
+        catch (Exception ex)
+        {
+            await transaction.RollbackAsync();
+            Console.Error.WriteLine($"Error deleting project: {ex.Message}");
+            return StatusCode(500, "An error occurred while deleting the project.");
+        }
+    }
+    
+    [Authorize]
+    [HttpPut("{id}")]
+    public async Task<IActionResult> UpdateProject(int id, [FromBody] Project updatedProject)
+    {
+        if (string.IsNullOrWhiteSpace(updatedProject.Name))
+        {
+            return BadRequest("Project name is required.");
+        }
+
+        using var connection = new MySqlConnection(_connectionString);
+        await connection.OpenAsync();
+
+        var sql = @"
+        UPDATE projects
+        SET name = @Name,
+            description = @Description
+        WHERE id = @Id";
+
+        var rowsAffected = await connection.ExecuteAsync(sql, new
+        {
+            Id = id,
+            Name = updatedProject.Name,
+            Description = updatedProject.Description ?? ""
+        });
+
+        if (rowsAffected > 0)
+        {
+            return Ok(new { message = "Project updated successfully." });
+        }
+
+        return NotFound("Project not found.");
+    }
+
+
+    [Authorize]
+    [HttpPost("{projectId}/invite")]
+    public async Task<IActionResult> InviteUserToProject(int projectId, [FromBody] string username)
+    {
+        using var connection = new MySqlConnection(_connectionString);
+
+        var user = await connection.QuerySingleOrDefaultAsync<User>("SELECT * FROM users WHERE username = @Username", new { Username = username });
+        if (user == null) return NotFound("User not found");
+
+        var existingInvite = await connection.QuerySingleOrDefaultAsync<Invitation>(
+            "SELECT * FROM invitations WHERE user_id = @UserId AND project_id = @ProjectId AND status = 'pending'",
+            new { UserId = user.Id, ProjectId = projectId });
+
+        if (existingInvite != null) return BadRequest("Already invited");
+
+        var sql = "INSERT INTO invitations (user_id, project_id) VALUES (@UserId, @ProjectId)";
+        await connection.ExecuteAsync(sql, new { UserId = user.Id, ProjectId = projectId });
+
+        return Ok("Invitation sent");
+    }
 
 }
