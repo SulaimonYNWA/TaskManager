@@ -39,3 +39,9 @@ A simplified task management web application inspired by Asana, built with **C#*
 ```sh
 git commit -m "commit message"
 git push origin feature/your_branch_name
+```
+
+
+UI as of 14/05/2025:
+<img width="1496" alt="image" src="https://github.com/user-attachments/assets/97210efc-d142-481f-9b79-b50f13ebceeb" />
+
