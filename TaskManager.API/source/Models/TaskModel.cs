@@ -27,6 +27,8 @@ namespace TaskManager.API.Models
         public string EstimatedWork { get; set; } = "Short (1-4 hours)";
 
         public string Progress { get; set; } = "Not Started";
+        
+        public bool Completed { get; set; } = false;
 
         [Required]
         public int ColumnId { get; set; }

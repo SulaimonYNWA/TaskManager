@@ -114,6 +114,8 @@ public class TasksController : ControllerBase
         task.EstimatedWork = request.EstimatedWork ?? task.EstimatedWork;
         task.Progress = request.Progress ?? task.Progress;
         task.DueDate = request.DueDate ?? task.DueDate;
+        task.Completed = request.Completed ?? task.Completed;
+
 
         await _taskRepository.UpdateTask(task);
 

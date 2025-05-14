@@ -10,6 +10,8 @@ public class UpdateTaskRequest
     public string? EstimatedWork { get; set; }
     public string? Progress { get; set; }
     public DateTime? DueDate { get; set; }
+    public Boolean? Completed { get; set; }
+
 }
 
 

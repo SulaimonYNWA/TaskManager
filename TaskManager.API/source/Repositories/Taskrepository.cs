@@ -26,7 +26,7 @@ namespace TaskManager.API.source.Repositories
         SELECT id, title, description, project_id AS ProjectId, 
                assignee_id AS AssigneeId, status, priority, 
                estimated_work AS EstimatedWork, progress, 
-               column_id AS ColumnId, due_date AS DueDate, created_at AS CreatedAt
+               column_id AS ColumnId, due_date AS DueDate, created_at AS CreatedAt, completed as Completed
         FROM tasks");
         }
         
@@ -37,7 +37,7 @@ namespace TaskManager.API.source.Repositories
         SELECT id, title, description, project_id AS ProjectId, 
                assignee_id AS AssigneeId, status, priority, 
                estimated_work AS EstimatedWork, progress, 
-               column_id AS ColumnId, due_date AS DueDate, created_at AS CreatedAt
+               column_id AS ColumnId, due_date AS DueDate, created_at AS CreatedAt, completed as Completed
         FROM tasks 
         WHERE project_id = @projectId", new { projectId });
         }
@@ -77,7 +77,8 @@ namespace TaskManager.API.source.Repositories
             progress = @Progress, 
             column_id = @ColumnId, 
             due_date = @DueDate,
-            created_at = @CreatedAt
+            created_at = @CreatedAt,
+            completed = @Completed
         WHERE id = @Id";
     
             return await db.ExecuteAsync(sql, task) > 0;
