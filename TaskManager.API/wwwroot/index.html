@@ -9,6 +9,28 @@
 </head>
 <body>
 <div class="sidebar-overlay"></div>
+
+<div id="profile-modal" class="modal" style="display:none;">
+    <div class="modal-content">
+        <span class="profile-close-btn" onclick="document.getElementById('profile-modal').style.display='none'">&times;</span>
+        <div class="profile-avatar"></div>
+
+        <label>Email:</label>
+        <div id="profile-email" class="profile-field"></div>
+
+        <label>Username:</label>
+        <input type="text" id="profile-name-input" placeholder="Enter your name" /> <br>
+
+        <label>Created At:</label>
+        <div id="profile-created-at" class="profile-field"></div>
+
+        <button onclick="saveProfileChanges()">Save</button>
+        <div id="invitation-section"></div>
+    </div>
+</div>
+
+
+
 <button class="logout-btn" onclick="logout()">
     <i class="fas fa-sign-out-alt"></i>
 </button>
@@ -23,18 +45,38 @@
 
     <main class="task-board">
         <header class="board-header">
-            <h1>
-                <span id="project-name" class="editable-project-name"></span>
-                <button class="add-task-header-btn" id="add-task-main-btn">
-                    <i class="fas fa-plus"></i> Add Task
-                </button>
-            </h1>
+                <h1 id="project-header-title">
+                    <span id="project-name" contenteditable="true"></span>
+                    <button id="project-options-btn" title="Project Options">
+                      <i class="fas fa-info-circle"></i>
+                    </button>
+                    <button class="add-task-header-btn" id="add-task-main-btn">
+                        <i class="fas fa-plus"></i> Add Task
+                    </button>
+                </h1>
+
+<!--                <span id="project-name" class="editable-project-name"></span>-->
         </header>
 
         <div id="task-board" class="columns"></div>
     </main>
+</div>
 
+<div id="project-options-modal" class="modal hidden"  style="display: none;" >
+    <div id="project-modal-content">
+        <span class="close-btn">&times;</span>
+        <h2>Project Settings</h2>
+        <p><strong>Owner:</strong> <span id="owner-name"></span></p>
+        <h3>Collaborators</h3>
+        
+        <ul id="collaborators-list"></ul>
 
+        <div id="add-collaborator-section">
+            <input type="text" id="new-collaborator-username" placeholder="Search users by name or email..." autocomplete="off" />
+            <div id="collaborator-suggestions" class="suggestions-list"></div>
+            <button id="add-collaborator-btn">Send Invite</button>
+        </div>
+    </div>
 </div>
 
 <div id="task-details-panel" class="task-details-panel"></div>

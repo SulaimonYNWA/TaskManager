@@ -16,6 +16,11 @@
     --modal-input-bg: #3B4252;
     --modal-border: #4C566A;
     --modal-text: #ECEFF4;
+    --high: #f06a6a;
+    --medium: #f1bd6c;
+    --low: #9ee7e3;
+    --achieved: #4ecbc4;
+    
 
     /* Layout Variables */
     --sidebar-width: 15vw;
@@ -279,34 +284,52 @@ body {
 
 .task-meta {
     display: flex;
-    justify-content: space-between;
+    flex-wrap: wrap;
+    justify-content: flex-start;
     margin-top: 10px;
     font-size: 0.8rem;
     align-items: center;
 }
+.task-meta2{
+    display: flex;
+    justify-content: left;
+    margin-top: 4px;
+    font-size: 0.8rem;
+    align-items: center;
+}
 
+.task-meta>span,.task-meta2>span {
+    margin-right: 10px;
+    margin-top: 5px;
+}
 /* ========== PRIORITY BADGES ========== */
-.priority {
-    padding: 3px 10px;
+.priority,
+.est-work, .progress {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 2px 8px;
     border-radius: 4px;
-    font-weight: 700;
-    font-size: 0.75rem;
+    font-weight: 600;
+    font-size: 0.70rem;
     text-transform: uppercase;
     letter-spacing: 0.5px;
+    line-height: 1.4; /* Ensures consistent height */
+    min-height: 22px; /* Or whatever height you want */
 }
 
 .priority-low {
-    background: var(--success);
+    background: var(--low);
     color: #000;
 }
 
 .priority-medium {
-    background: var(--warning);
+    background: var(--medium);
     color: #000;
 }
 
 .priority-high {
-    background: var(--danger);
+    background: var(--high);
     color: #FFF;
 }
 
@@ -315,18 +338,55 @@ body {
     font-size: 0.8rem;
 }
 
+.est-work-short{
+    background: var(--low);
+    color: #000;
+}
+.est-work-medium{
+    background: var(--medium);
+    color: #000;
+}
+.est-work-large,.est-work-x-large {
+    background: var(--high);
+    color: #000;
+}
+ 
+/* ========== Progress BADGES ========== */
+
+.progress-achieved, .progress-on {
+    background: var(--achieved);
+    color: #000;
+}
+
+.progress-on {
+    background: #ffc966;
+    color: #000;
+}
+
+.progress-not{
+    background: #605959;
+    color: #FFF;
+    font-weight: 500;
+    font-size: 0.65rem;
+}
+
+.progress-off{
+    background: var(--danger);
+    color: #FFF;
+}
+
 /* ========== TASK DETAILS PANEL ========== */
 #task-details-panel {
     position: fixed;
     top: 0;
-    right: -450px;
-    width: 450px;
+    right: -750px;
+    width: 750px;
     height: 100vh;
     background: var(--modal-bg);
     padding: 30px;
     box-shadow: -8px 0 30px rgba(0,0,0,0.4);
-    transition: right 0.3s ease;
-    z-index: 1002;
+    transition: right 0.5s ease;
+    z-index: 9002;
     overflow-y: auto;
 }
 
@@ -363,6 +423,7 @@ body {
     color: var(--accent-yellow);
     margin-bottom: 15px;
     font-size: 1.1rem;
+    height: 100%;
 }
 
 /* Assignee Section */
@@ -395,7 +456,15 @@ body {
 .assignee-name {
     font-weight: 600;
     color: var(--modal-text);
+    position: relative;
+    /*left: 100px;*/
 }
+
+#assignee-under-task{
+    color: var(--text-muted);
+    font-weight: 200;
+    font-size: 0.9rem;
+}   
 
 /* Form Elements */
 .form-group {
@@ -432,7 +501,8 @@ body {
 }
 
 .styled-textarea {
-    min-height: 120px;
+    min-height: 150px;
+    height: auto;
     resize: vertical;
     line-height: 1.5;
 }
@@ -590,6 +660,17 @@ body {
 
 .hidden {
     display: none;
+}
+#project-modal-content{
+    display: none; 
+    position: fixed;
+    left: 40vw; 
+    top: 10vh; 
+    z-index: 999;
+    border: #3A3D4D 1px solid;
+    border-radius: 10px;
+    background: #2E3440;
+    padding: 30px;
 }
 
 .clickable {
@@ -866,4 +947,179 @@ body {
     outline: none;
     border-bottom: 1px dashed #ccc;
     cursor: text;
+}
+
+/*project info button*/
+#project-options-btn {
+    background-color: transparent;
+    border: none;
+    cursor: pointer;
+    font-size: 1rem;           /* Smaller size */
+    padding: 1px;
+    margin-right: 5px;
+    color: #555;               /* Subtle default color */
+    transition: color 0.2s ease, transform 0.2s ease;
+    vertical-align: middle;
+}
+
+#project-options-btn i {
+    pointer-events: none;      /* Prevent double click on icon only */
+}
+
+#project-options-btn:hover {
+    color: #F1C40F;            /* Blue on hover */
+    transform: scale(1.1);     /* Slight zoom */
+}
+
+/*user modal*/
+/*.user-avatar {*/
+/*    width: 32px;*/
+/*    height: 32px;*/
+/*    background-color: #007BFF;*/
+/*    color: #fff;*/
+/*    font-weight: bold;*/
+/*    border-radius: 50%;*/
+/*    display: flex;*/
+/*    align-items: center;*/
+/*    justify-content: center;*/
+/*    cursor: pointer;*/
+/*    margin-right: 10px;*/
+/*}*/
+
+.modal {
+    position: fixed;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0,0,0,0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+
+  
+    border: #3A3D4D 1px solid;
+    border-radius: 10px;
+    padding: 30px;
+}
+
+.modal-content {
+    background: #2E3440;
+    left: 40vw;
+    top: 10vh;
+    padding: 20px;
+    border-radius: 8px;
+    position: relative;
+    text-align: center;
+    min-width: 200px;
+}
+
+.project-modal-content{
+    position: fixed;
+    left: 40vw;
+    top: 10vh;
+    background: var(--modal-bg);
+    padding: 25px;
+    border-radius: 10px;
+    width: 100%;
+    max-width: 500px;
+    box-shadow: 0 5px 20px rgba(0,0,0,0.3);
+}
+
+.profile-avatar {
+    width: 60px;
+    height: 60px;
+    background-color: #F1C40F;
+    color: white;
+    font-size: 24px;
+    font-weight: bold;
+    border-radius: 50%;
+    margin: 0 auto 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.close-btn, .profile-close-btn {
+    position: absolute;
+    right: 10px;
+    top: 5px;
+    cursor: pointer;
+    font-size: 30px;
+}
+
+
+.profile-field {
+    margin-bottom: 10px;
+    font-weight: 500;
+}
+
+#profile-name-input{
+    color: var(--modal-text);
+    background: transparent;
+    border: #787c8f 1px solid;
+    padding: 5px;
+}
+#profile-name-input:hover{
+    border: #fdfdfd 2px solid;
+}
+
+.remove-collab-btn {
+    background: transparent;
+    border: none;
+    color: #c0392b;
+    cursor: pointer;
+    margin-left: 8px;
+    font-size: 14px;
+    transition: color 0.2s ease;
+}
+
+.remove-collab-btn:hover {
+    color: #e74c3c;
+}
+
+.suggestions-list {
+    border: 1px solid #ccc;
+    max-height: 150px;
+    overflow-y: auto;
+    position: absolute;
+    background: #3A3D4D;
+    z-index: 10;
+    width: 100%;
+}
+
+.suggestions-list div {
+    padding: 8px;
+    cursor: pointer;
+}
+
+.suggestions-list div:hover {
+    background-color: #787c8f;
+}
+
+.task-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.btn-complete {
+    margin-bottom: 10px;
+    background-color: #3A3D4D;
+    border: 1px solid #727585;
+    border-radius: 4px;
+    color: white;
+    padding: 6px 12px;
+    cursor: pointer;
+    font-size: 0.85rem;
+    font-weight: 400;
+}
+
+.btn-complete:hover {
+    background-color: #567558;
+    color: #b6ccb7;
+}
+
+
+.completed-task{
+    opacity: 0.1;
 }
