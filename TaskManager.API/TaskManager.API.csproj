@@ -23,12 +23,6 @@
     </ItemGroup>
 
     <ItemGroup>
-      <Folder Include="source\Services\" />
-        <Folder Include="source\DTO\" />
-
-    </ItemGroup>
-
-    <ItemGroup>
       <_ContentIncludedByDefault Remove="src\obj\Debug\net8.0\staticwebassets.build.json" />
       <_ContentIncludedByDefault Remove="src\obj\project.assets.json" />
       <_ContentIncludedByDefault Remove="src\obj\project.packagespec.json" />
@@ -42,6 +36,10 @@
       <Content Update="appsettings.Development.json">
         <CopyToPublishDirectory>Never</CopyToPublishDirectory>
       </Content>
+    </ItemGroup>
+
+    <ItemGroup>
+      <Folder Include="source\Services\" />
     </ItemGroup>
 
 </Project>
